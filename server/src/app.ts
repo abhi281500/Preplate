@@ -5,6 +5,9 @@ import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './modules/auth/auth.routes.js';
+import restaurantRoutes from './modules/restaurant/restaurant.routes.js';
+import menuRoutes from './modules/menu/menu.routes.js';
+import publicRoutes from './modules/public/public.routes.js';
 
 export const createApp = (customRoutes?: { path: string; router: express.Router }[]) => {
   const app = express();
@@ -42,6 +45,9 @@ export const createApp = (customRoutes?: { path: string; router: express.Router 
   // API v1 Routes
   const apiRouter = express.Router();
   apiRouter.use('/auth', authRoutes);
+  apiRouter.use('/public', publicRoutes);
+  apiRouter.use('/restaurant', restaurantRoutes);
+  apiRouter.use('/restaurant', menuRoutes);
 
   if (customRoutes) {
     for (const route of customRoutes) {
