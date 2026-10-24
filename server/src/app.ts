@@ -9,6 +9,7 @@ import restaurantRoutes from './modules/restaurant/restaurant.routes.js';
 import menuRoutes from './modules/menu/menu.routes.js';
 import publicRoutes from './modules/public/public.routes.js';
 import orderRoutes from './modules/order/order.routes.js';
+import orderManagementRoutes from './modules/restaurant/orderManagement.routes.js';
 
 export const createApp = (customRoutes?: { path: string; router: express.Router }[]) => {
   const app = express();
@@ -50,6 +51,7 @@ export const createApp = (customRoutes?: { path: string; router: express.Router 
   apiRouter.use('/public', orderRoutes);
   apiRouter.use('/restaurant', restaurantRoutes);
   apiRouter.use('/restaurant', menuRoutes);
+  apiRouter.use('/restaurant', orderManagementRoutes);
 
   if (customRoutes) {
     for (const route of customRoutes) {
