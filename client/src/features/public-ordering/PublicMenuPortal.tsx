@@ -29,6 +29,8 @@ interface MenuItem {
   isVeg: boolean;
   prepTimeEstimateMinutes: number;
   isAvailable: boolean;
+  trackInventory?: boolean;
+  availableQuantity?: number;
   imageUrl?: string;
 }
 
@@ -397,8 +399,13 @@ const MenuContent: React.FC = () => {
                           </span>
 
                           {!item.isAvailable && (
-                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-100 text-rose-800">
+                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">
                               Sold Out
+                            </span>
+                          )}
+                          {item.isAvailable && item.trackInventory && (item.availableQuantity ?? 0) <= 5 && (
+                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+                              Only {item.availableQuantity} Left!
                             </span>
                           )}
                         </div>
@@ -431,7 +438,13 @@ const MenuContent: React.FC = () => {
                             <div className="flex items-center space-x-2 bg-stone-100 rounded-xl p-1 border border-stone-200">
                               <button
                                 type="button"
-                                onClick={() => updateQuantity(item.id, inCartQuantity - 1)}
+                                onClick={() =>
+                                  updateQuantity(
+                                    item.id,
+                                    inCartQuantity - 1,
+                                    item.trackInventory ? item.availableQuantity : undefined
+                                  )
+                                }
                                 className="p-1 rounded-lg text-stone-700 hover:bg-white transition"
                               >
                                 <Minus className="w-3.5 h-3.5" />
@@ -441,7 +454,13 @@ const MenuContent: React.FC = () => {
                               </span>
                               <button
                                 type="button"
-                                onClick={() => updateQuantity(item.id, inCartQuantity + 1)}
+                                onClick={() =>
+                                  updateQuantity(
+                                    item.id,
+                                    inCartQuantity + 1,
+                                    item.trackInventory ? item.availableQuantity : undefined
+                                  )
+                                }
                                 className="p-1 rounded-lg text-stone-700 hover:bg-white transition"
                               >
                                 <Plus className="w-3.5 h-3.5" />
@@ -451,7 +470,12 @@ const MenuContent: React.FC = () => {
                             <button
                               type="button"
                               className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-xs border border-brand-200 shadow-sm transition active:scale-95"
-                              onClick={() => addItem(item)}
+                              onClick={() =>
+                                addItem({
+                                  ...item,
+                                  maxAvailable: item.trackInventory ? item.availableQuantity : undefined
+                                })
+                              }
                             >
                               <Plus className="w-3.5 h-3.5" />
                               <span>Add</span>

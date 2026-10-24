@@ -223,6 +223,10 @@ export const createMenuItem = async (
       isVeg: isVeg ?? true,
       prepTimeEstimateMinutes: prepTimeEstimateMinutes ?? 15,
       isAvailable: isAvailable ?? true,
+      trackInventory: Boolean(req.body.trackInventory),
+      availableQuantity: req.body.availableQuantity !== undefined ? Math.max(0, Number(req.body.availableQuantity)) : 20,
+      dailyStockLimit: req.body.dailyStockLimit !== undefined ? Math.max(0, Number(req.body.dailyStockLimit)) : 20,
+      ordersCountToday: 0,
       imageUrl: imageUrl || undefined,
       displayOrder: displayOrder ?? 0
     });
@@ -330,16 +334,24 @@ export const toggleAvailability = async (
       return;
     }
 
-    const item = await MenuItem.findOneAndUpdate(
-      { _id: id, tenantId: req.tenantId },
-      { $set: { isAvailable } },
-      { new: true }
-    );
-
-    if (!item) {
+    const existing = await MenuItem.findOne({ _id: id, tenantId: req.tenantId });
+    if (!existing) {
       res.status(404).json({ success: false, message: 'Menu item not found or access denied' });
       return;
     }
+
+    const updates: any = { isAvailable };
+    if (!isAvailable) {
+      updates.availableQuantity = 0;
+    } else if (existing.trackInventory && (existing.availableQuantity || 0) <= 0) {
+      updates.availableQuantity = existing.dailyStockLimit > 0 ? existing.dailyStockLimit : 20;
+    }
+
+    const item = await MenuItem.findOneAndUpdate(
+      { _id: id, tenantId: req.tenantId },
+      { $set: updates },
+      { new: true }
+    );
 
     // Log the availability change for operational audit
     await AuditLog.create({
@@ -348,13 +360,86 @@ export const toggleAvailability = async (
       actorRole: req.user?.role || 'STAFF',
       action: isAvailable ? 'ITEM_MARKED_AVAILABLE' : 'ITEM_MARKED_SOLD_OUT',
       resource: 'MenuItem',
-      resourceId: item._id.toString(),
-      details: { itemName: item.name, isAvailable }
+      resourceId: item!._id.toString(),
+      details: { itemName: item!.name, isAvailable, availableQuantity: item!.availableQuantity }
     });
 
     res.status(200).json({
       success: true,
-      message: `Item '${item.name}' marked ${isAvailable ? 'Available' : 'Sold Out'}`,
+      message: `Item '${item!.name}' marked ${isAvailable ? 'Available' : 'Sold Out (86ed)'}`,
+      data: item
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Production-level inventory and portion quota controller
+ */
+export const updateStockQuantity = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { availableQuantity, adjustment, trackInventory, dailyStockLimit } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: 'Invalid item ID' });
+      return;
+    }
+
+    const item = await MenuItem.findOne({ _id: id, tenantId: req.tenantId });
+    if (!item) {
+      res.status(404).json({ success: false, message: 'Menu item not found or access denied' });
+      return;
+    }
+
+    const previousQty = item.availableQuantity ?? 0;
+    let newQty = previousQty;
+
+    if (trackInventory !== undefined) {
+      item.trackInventory = Boolean(trackInventory);
+    }
+
+    if (dailyStockLimit !== undefined && Number(dailyStockLimit) >= 0) {
+      item.dailyStockLimit = Number(dailyStockLimit);
+    }
+
+    if (availableQuantity !== undefined) {
+      newQty = Math.max(0, Number(availableQuantity));
+    } else if (adjustment !== undefined) {
+      newQty = Math.max(0, previousQty + Number(adjustment));
+    }
+
+    item.availableQuantity = newQty;
+    if (item.trackInventory) {
+      item.isAvailable = newQty > 0;
+    }
+
+    await item.save();
+
+    await AuditLog.create({
+      tenantId: req.tenantId,
+      userId: req.user?.userId,
+      actorRole: req.user?.role || 'STAFF',
+      action: 'ITEM_STOCK_UPDATED',
+      resource: 'MenuItem',
+      resourceId: item._id.toString(),
+      details: {
+        itemName: item.name,
+        previousQuantity: previousQty,
+        newQuantity: newQty,
+        isAvailable: item.isAvailable,
+        trackInventory: item.trackInventory
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Stock for '${item.name}' updated to ${item.trackInventory ? newQty + ' portions' : 'Unlimited'}`,
       data: item
     });
   } catch (error) {

@@ -230,6 +230,45 @@ describe('Phase 2: Restaurant Profile, Menu Management & Public Portal Tests', (
     expect(res.body.success).toBe(false);
   });
 
+  it('allows restaurant staff to adjust stock quantity and portion quotas via /api/v1/restaurant/menu-items/:id/stock', async () => {
+    // 1. Set stock to 15 portions
+    const res = await request(app)
+      .patch(`/api/v1/restaurant/menu-items/${createdItemId}/stock`)
+      .set('Authorization', `Bearer ${rest1Token}`)
+      .send({
+        trackInventory: true,
+        availableQuantity: 15,
+        dailyStockLimit: 25
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.availableQuantity).toBe(15);
+    expect(res.body.data.dailyStockLimit).toBe(25);
+    expect(res.body.data.trackInventory).toBe(true);
+    expect(res.body.data.isAvailable).toBe(true);
+
+    // 2. Adjust with +5 portions
+    const resAdd = await request(app)
+      .patch(`/api/v1/restaurant/menu-items/${createdItemId}/stock`)
+      .set('Authorization', `Bearer ${rest1Token}`)
+      .send({ adjustment: 5 });
+
+    expect(resAdd.status).toBe(200);
+    expect(resAdd.body.data.availableQuantity).toBe(20);
+  });
+
+  it('automatically 86s (marks sold out) item when availableQuantity drops to 0', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/restaurant/menu-items/${createdItemId}/stock`)
+      .set('Authorization', `Bearer ${rest1Token}`)
+      .send({ availableQuantity: 0 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.availableQuantity).toBe(0);
+    expect(res.body.data.isAvailable).toBe(false);
+  });
+
   // -------------------------------------------------------------
   // PUBLIC PORTAL TESTS
   // -------------------------------------------------------------

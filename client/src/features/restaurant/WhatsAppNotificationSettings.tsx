@@ -11,7 +11,9 @@ import {
   Clock,
   Smartphone,
   ShieldCheck,
-  Radio
+  Radio,
+  Copy,
+  Check
 } from 'lucide-react';
 import api from '../../shared/api';
 
@@ -61,6 +63,76 @@ export const WhatsAppNotificationSettings: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
 
   const [activeTemplateTab, setActiveTemplateTab] = useState<'request' | 'accepted' | 'ready'>('request');
+  const [copied, setCopied] = useState(false);
+
+  const getCleanPhone = (phone: string) => {
+    const cleaned = (phone || '').replace(/[^0-9]/g, '');
+    return cleaned.length === 10 ? `91${cleaned}` : cleaned;
+  };
+
+  const currentOrigin = window.location.origin;
+  const queueUrl = `${currentOrigin}/admin/restaurant`;
+  const trackingUrl = `${currentOrigin}/r/highway-dhaba/order/ORD-20261024-8841`;
+
+  const getTemplateText = (type: 'request' | 'accepted' | 'ready') => {
+    if (type === 'request') {
+      return `🛎️ *NEW PREPLATE ORDER REQUEST*
+*Ref:* ORD-20261024-8841
+*Guest:* Rahul Sharma (+919876543210)
+*Expected Arrival:* 01:30 PM (in 25 mins)
+*Dining Mode:* DINE_IN (Table requested)
+
+*Items Ordered:*
+- 2x Paneer Butter Masala (₹560.00)
+- 4x Butter Naan (₹160.00)
+- 1x Sweet Lassi (₹80.00)
+
+*Subtotal:* ₹800.00
+*GST (5%):* ₹40.00
+*Grand Total:* ₹840.00 (PAY_AT_RESTAURANT)
+
+🔗 *Open Live Kitchen Queue to Accept:*
+${queueUrl}`;
+    }
+
+    if (type === 'accepted') {
+      return `✅ *ORDER CONFIRMED & IN PREPARATION*
+
+Hello Rahul Sharma, your order *ORD-20261024-8841* has been accepted by Highway Dhaba Express!
+
+⏱️ *Est. Ready Time:* 01:25 PM
+📍 *Arrival Address:* NH 44 Highway Express Mile 42
+
+Our kitchen will begin preparation so your meal is fresh and hot when you arrive.
+
+🔗 Track live status anytime:
+${trackingUrl}`;
+    }
+
+    return `🍲 *YOUR FOOD IS READY!*
+
+Hello Rahul Sharma, your order *ORD-20261024-8841* is freshly prepared and ready for you at Highway Dhaba Express!
+
+Please head to the counter or show this reference to your server.
+Enjoy your meal!
+
+🔗 View Live Order:
+${trackingUrl}`;
+  };
+
+  const getWhatsAppLaunchLink = (type: 'request' | 'accepted' | 'ready') => {
+    const text = getTemplateText(type);
+    const targetPhone = phoneInput.trim() || '9876543210';
+    const cleanNumber = getCleanPhone(targetPhone);
+    return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(text)}`;
+  };
+
+  const handleCopyMessage = (type: 'request' | 'accepted' | 'ready') => {
+    const text = getTemplateText(type);
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   const fetchData = async () => {
     try {
@@ -315,52 +387,89 @@ export const WhatsAppNotificationSettings: React.FC = () => {
         </form>
       </div>
 
-      {/* Standardized Message Templates Preview */}
-      <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-stone-900">Standardized Communication Message Formats</h3>
-          <p className="text-xs text-stone-500">
-            Preplate formats every notification with immutable order references and verifiable timestamps.
-          </p>
+      {/* Standardized Message Templates Preview & Live WhatsApp Launchers */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-stone-900">Standardized Communication Message Formats</h3>
+            <p className="text-xs text-stone-500">
+              Interactive WhatsApp templates with live deep-links for instant customer & kitchen coordination.
+            </p>
+          </div>
+
+          {/* Action buttons for active template */}
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => handleCopyMessage(activeTemplateTab)}
+              className="inline-flex items-center space-x-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold py-2 px-3.5 rounded-xl border border-stone-200 transition"
+              title="Copy message format to clipboard"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? 'Copied!' : 'Copy Text'}</span>
+            </button>
+
+            <a
+              href={getWhatsAppLaunchLink(activeTemplateTab)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-xl shadow-sm transition"
+              title="Open prefilled template in WhatsApp Web or Mobile app"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Launch in WhatsApp (wa.me)</span>
+              <ExternalLink className="w-3 h-3 ml-0.5" />
+            </a>
+          </div>
         </div>
 
-        {/* Template Tabs */}
-        <div className="flex items-center space-x-2 border-b border-stone-100 pb-2">
+        {/* Template Selection Tabs */}
+        <div className="flex items-center space-x-2 border-b border-stone-200 pb-2 overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTemplateTab('request')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTemplateTab === 'request'
-                ? 'bg-stone-900 text-white'
+                ? 'bg-stone-900 text-white shadow-sm'
                 : 'text-stone-600 hover:bg-stone-100'
             }`}
           >
-            1. New Order Request (Customer → Restaurant)
+            1. New Order Request (Customer → Kitchen)
           </button>
           <button
             onClick={() => setActiveTemplateTab('accepted')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTemplateTab === 'accepted'
-                ? 'bg-stone-900 text-white'
+                ? 'bg-stone-900 text-white shadow-sm'
                 : 'text-stone-600 hover:bg-stone-100'
             }`}
           >
-            2. Order Accepted (Restaurant → Customer)
+            2. Order Accepted (Kitchen → Customer)
           </button>
           <button
             onClick={() => setActiveTemplateTab('ready')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTemplateTab === 'ready'
-                ? 'bg-stone-900 text-white'
+                ? 'bg-stone-900 text-white shadow-sm'
                 : 'text-stone-600 hover:bg-stone-100'
             }`}
           >
-            3. Order Ready (Kitchen → Customer)
+            3. Order Ready (Counter Pickup Alert)
           </button>
         </div>
 
-        {/* WhatsApp Chat Bubble Mockup */}
-        <div className="bg-stone-100 rounded-xl p-5 border border-stone-200">
-          <div className="max-w-md bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 text-xs font-mono whitespace-pre-wrap leading-relaxed text-stone-800">
+        {/* WhatsApp Chat Bubble Mockup with Clickable Hyperlinks */}
+        <div className="bg-stone-100 rounded-2xl p-5 border border-stone-200 space-y-3">
+          <div className="flex items-center justify-between text-[11px] font-bold text-stone-500">
+            <span className="flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live WhatsApp Message Preview (Verified Deep-Link Ready)</span>
+            </span>
+            <span className="font-mono">
+              Target Phone: +{getCleanPhone(phoneInput.trim() || '919876543210')}
+            </span>
+          </div>
+
+          <div className="max-w-lg bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 text-xs font-mono whitespace-pre-wrap leading-relaxed text-stone-800">
             {activeTemplateTab === 'request' && (
               <>
                 🛎️ *NEW PREPLATE ORDER REQUEST*{"\n"}
@@ -379,7 +488,15 @@ export const WhatsAppNotificationSettings: React.FC = () => {
                 *Grand Total:* ₹840.00 (PAY_AT_RESTAURANT){"\n"}
                 {"\n"}
                 🔗 *Open Live Kitchen Queue to Accept:*{"\n"}
-                https://preplate.app/restaurant/orders?ref=ORD-20261024-8841
+                <a
+                  href={queueUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-700 underline font-bold hover:text-emerald-900 inline-flex items-center space-x-1"
+                >
+                  <span>{queueUrl}</span>
+                  <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
               </>
             )}
 
@@ -394,8 +511,16 @@ export const WhatsAppNotificationSettings: React.FC = () => {
                 {"\n"}
                 Our kitchen will begin preparation so your meal is fresh and hot when you arrive.{"\n"}
                 {"\n"}
-                Track live status anytime:{"\n"}
-                https://preplate.app/order/ORD-20261024-8841
+                🔗 *Track live status anytime:*{"\n"}
+                <a
+                  href={trackingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-700 underline font-bold hover:text-emerald-900 inline-flex items-center space-x-1"
+                >
+                  <span>{trackingUrl}</span>
+                  <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
               </>
             )}
 
@@ -406,9 +531,32 @@ export const WhatsAppNotificationSettings: React.FC = () => {
                 Hello Rahul Sharma, your order *ORD-20261024-8841* is freshly prepared and ready for you at Highway Dhaba Express!{"\n"}
                 {"\n"}
                 Please head to the counter or show this reference to your server.{"\n"}
-                Enjoy your meal!
+                Enjoy your meal!{"\n"}
+                {"\n"}
+                🔗 *View Live Order Details:*{"\n"}
+                <a
+                  href={trackingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-700 underline font-bold hover:text-emerald-900 inline-flex items-center space-x-1"
+                >
+                  <span>{trackingUrl}</span>
+                  <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
               </>
             )}
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-stone-500 pt-1">
+            <span>Clicking the blue link opens the real order view.</span>
+            <a
+              href={getWhatsAppLaunchLink(activeTemplateTab)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-emerald-700 font-bold hover:underline inline-flex items-center"
+            >
+              <span>Click to test sending this via WhatsApp &rarr;</span>
+            </a>
           </div>
         </div>
       </div>

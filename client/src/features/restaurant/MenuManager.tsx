@@ -3,16 +3,21 @@ import {
   Utensils,
   Plus,
   Trash2,
-  Edit2,
   Clock,
   CheckCircle2,
   AlertCircle,
-  ToggleLeft,
-  ToggleRight,
   FolderPlus,
   Loader2,
-  Search,
-  Filter
+  Package,
+  PackageCheck,
+  PackageX,
+  Boxes,
+  RotateCcw,
+  Sliders,
+  Check,
+  TrendingUp,
+  AlertTriangle,
+  Minus
 } from 'lucide-react';
 import api from '../../shared/api';
 
@@ -32,6 +37,10 @@ interface MenuItem {
   isVeg: boolean;
   prepTimeEstimateMinutes: number;
   isAvailable: boolean;
+  trackInventory?: boolean;
+  availableQuantity?: number;
+  dailyStockLimit?: number;
+  ordersCountToday?: number;
   categoryId: { _id: string; name: string } | string;
 }
 
@@ -43,6 +52,9 @@ export const MenuManager: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Quick edit stock input state (itemId -> custom input string)
+  const [customStockInputs, setCustomStockInputs] = useState<Record<string, string>>({});
 
   // Modals state
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -56,7 +68,10 @@ export const MenuManager: React.FC = () => {
     description: '',
     price: '',
     isVeg: true,
-    prepTimeEstimateMinutes: '15'
+    prepTimeEstimateMinutes: '15',
+    trackInventory: true,
+    availableQuantity: '25',
+    dailyStockLimit: '25'
   });
 
   const fetchData = async () => {
@@ -81,7 +96,7 @@ export const MenuManager: React.FC = () => {
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   // 1-Click Availability Toggle (86ing)
@@ -89,18 +104,94 @@ export const MenuManager: React.FC = () => {
     const nextState = !item.isAvailable;
     setActionLoading(item._id);
     try {
-      await api.patch(`/restaurant/menu-items/${item._id}/availability`, {
+      const res = await api.patch(`/restaurant/menu-items/${item._id}/availability`, {
         isAvailable: nextState
       });
       setMenuItems((prev) =>
-        prev.map((i) => (i._id === item._id ? { ...i, isAvailable: nextState } : i))
+        prev.map((i) => (i._id === item._id ? { ...i, ...res.data.data } : i))
       );
-      triggerToast(`Item '${item.name}' marked ${nextState ? 'In Stock' : 'Sold Out'}`);
+      triggerToast(
+        nextState
+          ? `Item '${item.name}' made available in kitchen`
+          : `Item '${item.name}' 86’d (Marked Sold Out)`
+      );
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update item availability');
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // Adjust stock portions (+1, -1, +5, +10)
+  const handleAdjustStock = async (item: MenuItem, adjustment: number) => {
+    setActionLoading(item._id);
+    try {
+      const res = await api.patch(`/restaurant/menu-items/${item._id}/stock`, {
+        adjustment,
+        trackInventory: true
+      });
+      setMenuItems((prev) =>
+        prev.map((i) => (i._id === item._id ? { ...i, ...res.data.data } : i))
+      );
+      triggerToast(
+        `Stock for '${item.name}' adjusted (${adjustment > 0 ? `+${adjustment}` : adjustment}). New count: ${res.data.data.availableQuantity}`
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to adjust stock');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Set exact stock number
+  const handleSetExactStock = async (item: MenuItem, quantity: number) => {
+    if (isNaN(quantity) || quantity < 0) return;
+    setActionLoading(item._id);
+    try {
+      const res = await api.patch(`/restaurant/menu-items/${item._id}/stock`, {
+        availableQuantity: quantity,
+        trackInventory: true
+      });
+      setMenuItems((prev) =>
+        prev.map((i) => (i._id === item._id ? { ...i, ...res.data.data } : i))
+      );
+      setCustomStockInputs((prev) => ({ ...prev, [item._id]: '' }));
+      triggerToast(`Stock for '${item.name}' set to ${quantity} portions`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to set stock quantity');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Toggle between Unlimited Stock vs Tracked Portions
+  const handleToggleInventoryMode = async (item: MenuItem) => {
+    const nextMode = !item.trackInventory;
+    setActionLoading(item._id);
+    try {
+      const res = await api.patch(`/restaurant/menu-items/${item._id}/stock`, {
+        trackInventory: nextMode,
+        availableQuantity: nextMode ? (item.availableQuantity || 20) : undefined
+      });
+      setMenuItems((prev) =>
+        prev.map((i) => (i._id === item._id ? { ...i, ...res.data.data } : i))
+      );
+      triggerToast(
+        nextMode
+          ? `'${item.name}' is now tracking portion limits (${item.availableQuantity || 20} portions)`
+          : `'${item.name}' is now set to Unlimited Stock (Always Available)`
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to switch inventory mode');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Reset to daily quota (e.g. at the start of shift)
+  const handleResetToDailyQuota = async (item: MenuItem) => {
+    const quota = item.dailyStockLimit || 25;
+    handleSetExactStock(item, quota);
   };
 
   // Add Category Handler
@@ -153,7 +244,14 @@ export const MenuManager: React.FC = () => {
         description: itemFormData.description.trim() || undefined,
         price: Number(itemFormData.price),
         isVeg: itemFormData.isVeg,
-        prepTimeEstimateMinutes: Number(itemFormData.prepTimeEstimateMinutes) || 15
+        prepTimeEstimateMinutes: Number(itemFormData.prepTimeEstimateMinutes) || 15,
+        trackInventory: itemFormData.trackInventory,
+        availableQuantity: itemFormData.trackInventory
+          ? Number(itemFormData.availableQuantity) || 20
+          : 9999,
+        dailyStockLimit: itemFormData.trackInventory
+          ? Number(itemFormData.dailyStockLimit) || 20
+          : 9999
       });
 
       setMenuItems((prev) => [...prev, res.data.data]);
@@ -164,11 +262,13 @@ export const MenuManager: React.FC = () => {
         description: '',
         price: '',
         isVeg: true,
-        prepTimeEstimateMinutes: '15'
+        prepTimeEstimateMinutes: '15',
+        trackInventory: true,
+        availableQuantity: '25',
+        dailyStockLimit: '25'
       });
-      // Refresh categories to update item count
       fetchData();
-      triggerToast(`Item '${res.data.data.name}' added to menu`);
+      triggerToast(`Item '${res.data.data.name}' added with stock control`);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to add menu item');
     }
@@ -198,7 +298,7 @@ export const MenuManager: React.FC = () => {
     return (
       <div className="py-12 flex flex-col items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-brand-600 mb-2" />
-        <p className="text-sm font-semibold text-stone-600">Loading restaurant menu...</p>
+        <p className="text-sm font-semibold text-stone-600">Loading restaurant menu & stock...</p>
       </div>
     );
   }
@@ -208,17 +308,22 @@ export const MenuManager: React.FC = () => {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-xl flex items-center space-x-2 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Action Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-stone-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
         <div>
-          <h2 className="text-lg font-bold text-stone-900">Menu & Inventory Manager</h2>
-          <p className="text-xs text-stone-500">
-            Create categories, edit items, and toggle sold-out availability with 1-click &ldquo;86ing&rdquo;.
+          <div className="flex items-center space-x-2">
+            <h2 className="text-lg font-bold text-stone-900">Menu & Stock Availability Manager</h2>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 border border-brand-200">
+              Production Stock Control
+            </span>
+          </div>
+          <p className="text-xs text-stone-500 mt-1">
+            Control exact product portion limits, set daily preparation quotas, track customer orders, and instantly 86 sold-out items.
           </p>
         </div>
 
@@ -248,139 +353,299 @@ export const MenuManager: React.FC = () => {
       </div>
 
       {/* Category Tabs */}
-      <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none">
+      <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none text-xs">
         <button
           onClick={() => setSelectedCategoryId('all')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+          className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition ${
             selectedCategoryId === 'all'
-              ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
-              : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'
+              ? 'bg-stone-900 text-white shadow-sm'
+              : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
           }`}
         >
           All Items ({menuItems.length})
         </button>
-
         {categories.map((cat) => (
-          <div key={cat._id} className="flex items-center">
+          <div key={cat._id} className="relative group shrink-0">
             <button
               onClick={() => setSelectedCategoryId(cat._id)}
-              className={`px-3.5 py-2 rounded-l-xl text-xs font-bold whitespace-nowrap transition ${
+              className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
                 selectedCategoryId === cat._id
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'
+                  ? 'bg-stone-900 text-white shadow-sm'
+                  : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
               }`}
             >
-              {cat.name} ({cat.itemCount ?? 0})
+              <span>{cat.name}</span>
+              <span className="text-[10px] opacity-75">({cat.itemCount || 0})</span>
             </button>
             <button
-              onClick={() => handleDeleteCategory(cat)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteCategory(cat);
+              }}
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white hidden group-hover:flex items-center justify-center text-[10px] shadow"
               title="Delete Category"
-              className={`px-2 py-2 rounded-r-xl text-xs border-y border-r transition ${
-                selectedCategoryId === cat._id
-                  ? 'bg-brand-700 text-white border-brand-700 hover:bg-brand-800'
-                  : 'bg-white text-stone-400 hover:text-red-600 border-stone-200 hover:bg-red-50'
-              }`}
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              ×
             </button>
           </div>
         ))}
       </div>
 
-      {/* Items Grid with 1-Click 86ing */}
+      {/* Products & Inventory Grid */}
       {filteredItems.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-200 p-12 text-center shadow-sm">
           <Utensils className="w-12 h-12 text-stone-300 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-stone-900">No items found in this category</h3>
-          <p className="text-xs text-stone-500 mt-1">Click &ldquo;Add Menu Item&rdquo; to add your first dish.</p>
+          <h3 className="text-base font-bold text-stone-900">No menu items found</h3>
+          <p className="text-xs text-stone-500 mt-1">Add items to this category to begin managing stock and orders.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems.map((item) => (
-            <div
-              key={item._id}
-              className={`bg-white rounded-2xl border p-4 shadow-sm transition flex flex-col justify-between ${
-                item.isAvailable
-                  ? 'border-stone-200 hover:border-brand-300'
-                  : 'border-red-200 bg-red-50/20'
-              }`}
-            >
-              <div>
-                {/* Header Tag & Delete */}
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                      item.isVeg
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-rose-50 text-rose-700 border border-rose-200'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                        item.isVeg ? 'bg-emerald-600' : 'bg-rose-600'
-                      }`}
-                    ></span>
-                    {item.isVeg ? 'Veg' : 'Non-Veg'}
-                  </span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredItems.map((item) => {
+            const isTracked = Boolean(item.trackInventory);
+            const remainingQty = item.availableQuantity ?? 0;
+            const isSoldOut = !item.isAvailable || (isTracked && remainingQty <= 0);
+            const isLowStock = isTracked && !isSoldOut && remainingQty <= 5;
 
-                  <button
-                    onClick={() => handleDeleteItem(item._id, item.name)}
-                    className="text-stone-400 hover:text-red-600 p-1 transition"
-                    title="Delete Item"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <h3 className="text-base font-bold text-stone-900 leading-snug">{item.name}</h3>
-                {item.description && (
-                  <p className="mt-1 text-xs text-stone-500 line-clamp-2">{item.description}</p>
-                )}
-
-                <div className="mt-3 flex items-center justify-between text-xs text-stone-500">
-                  <span className="text-base font-extrabold text-stone-900">₹{item.price}</span>
-                  <span className="flex items-center text-stone-400">
-                    <Clock className="w-3.5 h-3.5 mr-1" /> ~{item.prepTimeEstimateMinutes}m prep
-                  </span>
-                </div>
-              </div>
-
-              {/* Instant 1-Click Availability Switch */}
-              <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
+            return (
+              <div
+                key={item._id}
+                className={`bg-white rounded-2xl border p-5 shadow-sm transition flex flex-col justify-between space-y-4 ${
+                  isSoldOut
+                    ? 'border-rose-300 bg-rose-50/20'
+                    : isLowStock
+                    ? 'border-amber-300 bg-amber-50/15'
+                    : 'border-stone-200 hover:border-brand-300'
+                }`}
+              >
                 <div>
-                  <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
-                    Kitchen Availability
-                  </span>
-                  <span
-                    className={`text-xs font-bold ${
-                      item.isAvailable ? 'text-emerald-700' : 'text-rose-700'
-                    }`}
-                  >
-                    {item.isAvailable ? 'In Stock (Accepting)' : 'Sold Out (86’d)'}
-                  </span>
+                  {/* Top Badges & Delete */}
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center space-x-1.5">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                          item.isVeg
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                            item.isVeg ? 'bg-emerald-600' : 'bg-rose-600'
+                          }`}
+                        />
+                        {item.isVeg ? 'Veg' : 'Non-Veg'}
+                      </span>
+
+                      {/* Stock Mode Badge */}
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          isTracked
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-stone-100 text-stone-600 border-stone-200'
+                        }`}
+                      >
+                        {isTracked ? 'Portion Tracked' : 'Unlimited Stock'}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteItem(item._id, item.name)}
+                      className="text-stone-300 hover:text-rose-600 p-1 transition"
+                      title="Delete Item"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <h3 className="text-base font-bold text-stone-900 leading-snug">{item.name}</h3>
+                  {item.description && (
+                    <p className="mt-1 text-xs text-stone-500 line-clamp-2">{item.description}</p>
+                  )}
+
+                  <div className="mt-2.5 flex items-center justify-between text-xs">
+                    <span className="text-base font-extrabold text-stone-900 font-mono">₹{item.price}</span>
+                    <span className="flex items-center text-stone-400 text-[11px]">
+                      <Clock className="w-3 h-3 mr-1" /> ~{item.prepTimeEstimateMinutes}m prep
+                    </span>
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleToggleAvailability(item)}
-                  disabled={actionLoading === item._id}
-                  className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
-                    item.isAvailable
-                      ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                      : 'bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300'
-                  }`}
-                >
-                  {actionLoading === item._id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : item.isAvailable ? (
-                    <span>86 Item (Sold Out)</span>
-                  ) : (
-                    <span>Make Available</span>
-                  )}
-                </button>
+                {/* ========================================================================= */}
+                {/* PRODUCTION STOCK & INVENTORY CONTROLS */}
+                {/* ========================================================================= */}
+                <div className="pt-3 border-t border-stone-100 space-y-3">
+                  {/* Status Banner */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5">
+                      {isSoldOut ? (
+                        <PackageX className="w-4 h-4 text-rose-600" />
+                      ) : isLowStock ? (
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      ) : (
+                        <PackageCheck className="w-4 h-4 text-emerald-600" />
+                      )}
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">
+                          Current Stock Status
+                        </span>
+                        <span
+                          className={`text-xs font-black ${
+                            isSoldOut
+                              ? 'text-rose-700'
+                              : isLowStock
+                              ? 'text-amber-700'
+                              : 'text-emerald-700'
+                          }`}
+                        >
+                          {isSoldOut
+                            ? 'SOLD OUT (86’d)'
+                            : isTracked
+                            ? `${remainingQty} Portions Remaining`
+                            : 'Unlimited Stock'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Orders count today */}
+                    {isTracked && (
+                      <span className="text-[10px] font-mono font-bold text-stone-500 bg-stone-100 px-2 py-1 rounded-lg">
+                        {item.ordersCountToday || 0} sold today
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Stepper Controls (When Tracking Portions) */}
+                  {isTracked ? (
+                    <div className="bg-stone-50 border border-stone-200 rounded-xl p-2.5 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-stone-600">
+                        <span>Quick Portions Stepper</span>
+                        <span className="font-mono text-stone-500">
+                          Quota: {item.dailyStockLimit || 25}/day
+                        </span>
+                      </div>
+
+                      {/* Quick delta buttons: -1, +1, +5, +10 */}
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          disabled={actionLoading === item._id || remainingQty <= 0}
+                          onClick={() => handleAdjustStock(item, -1)}
+                          className="flex-1 py-1 rounded-lg text-xs font-bold bg-white hover:bg-stone-100 disabled:opacity-40 border border-stone-200 text-stone-800 transition"
+                          title="Reduce 1 portion"
+                        >
+                          -1
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading === item._id}
+                          onClick={() => handleAdjustStock(item, 1)}
+                          className="flex-1 py-1 rounded-lg text-xs font-bold bg-white hover:bg-stone-100 disabled:opacity-40 border border-stone-200 text-stone-800 transition"
+                          title="Add 1 portion"
+                        >
+                          +1
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading === item._id}
+                          onClick={() => handleAdjustStock(item, 5)}
+                          className="flex-1 py-1 rounded-lg text-xs font-bold bg-white hover:bg-stone-100 disabled:opacity-40 border border-stone-200 text-stone-800 transition"
+                          title="Cooked 5 more portions"
+                        >
+                          +5
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading === item._id}
+                          onClick={() => handleAdjustStock(item, 10)}
+                          className="flex-1 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 border border-emerald-300 text-emerald-800 transition"
+                          title="Cooked 10 more portions"
+                        >
+                          +10
+                        </button>
+                      </div>
+
+                      {/* Direct Numeric Input */}
+                      <div className="flex items-center space-x-1.5 pt-1">
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Exact qty"
+                          value={customStockInputs[item._id] ?? ''}
+                          onChange={(e) =>
+                            setCustomStockInputs((prev) => ({ ...prev, [item._id]: e.target.value }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const val = parseInt(customStockInputs[item._id]);
+                              if (!isNaN(val)) handleSetExactStock(item, val);
+                            }
+                          }}
+                          className="w-24 px-2 py-1 bg-white border border-stone-300 rounded-lg text-xs font-mono font-bold text-stone-900 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        />
+                        <button
+                          type="button"
+                          disabled={
+                            actionLoading === item._id ||
+                            !customStockInputs[item._id] ||
+                            isNaN(parseInt(customStockInputs[item._id]))
+                          }
+                          onClick={() => {
+                            const val = parseInt(customStockInputs[item._id]);
+                            if (!isNaN(val)) handleSetExactStock(item, val);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-bold bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white rounded-lg transition"
+                        >
+                          Set
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleResetToDailyQuota(item)}
+                          className="ml-auto text-[10px] font-bold text-stone-500 hover:text-stone-800 flex items-center space-x-1"
+                          title="Reset to daily quota"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reset Daily</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Bottom Action Bar: Instant 86ing vs Restock */}
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAvailability(item)}
+                      disabled={actionLoading === item._id}
+                      className={`flex-1 inline-flex items-center justify-center space-x-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition shadow-sm ${
+                        item.isAvailable && (!isTracked || remainingQty > 0)
+                          ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                      }`}
+                    >
+                      {actionLoading === item._id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : item.isAvailable && (!isTracked || remainingQty > 0) ? (
+                        <span>86 Item (Set Sold Out)</span>
+                      ) : (
+                        <span>Make In-Stock</span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleInventoryMode(item)}
+                      disabled={actionLoading === item._id}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 border border-stone-200 transition"
+                      title={isTracked ? 'Switch to Unlimited Stock' : 'Switch to Portion Tracking'}
+                    >
+                      {isTracked ? 'Set Unlimited' : 'Track Portions'}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -440,7 +705,7 @@ export const MenuManager: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-stone-200">
             <h3 className="text-lg font-bold text-stone-900 mb-1">Add New Menu Item</h3>
-            <p className="text-xs text-stone-500 mb-4">Dish details, realistic preparation duration, and pricing.</p>
+            <p className="text-xs text-stone-500 mb-4">Dish details, portion quotas, preparation duration, and pricing.</p>
 
             <form onSubmit={handleCreateItem} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -451,7 +716,7 @@ export const MenuManager: React.FC = () => {
                     required
                     value={itemFormData.name}
                     onChange={(e) => setItemFormData({ ...itemFormData, name: e.target.value })}
-                    placeholder="Paneer Tikka"
+                    placeholder="e.g., Dal Makhani"
                     className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
@@ -459,7 +724,6 @@ export const MenuManager: React.FC = () => {
                 <div>
                   <label className="block text-xs font-bold text-stone-700 uppercase">Category</label>
                   <select
-                    required
                     value={itemFormData.categoryId}
                     onChange={(e) => setItemFormData({ ...itemFormData, categoryId: e.target.value })}
                     className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
@@ -479,22 +743,22 @@ export const MenuManager: React.FC = () => {
                   rows={2}
                   value={itemFormData.description}
                   onChange={(e) => setItemFormData({ ...itemFormData, description: e.target.value })}
-                  placeholder="Ingredients, spice level, serving style..."
+                  placeholder="Slow-cooked black lentils simmered overnight with cream and fresh butter."
                   className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 uppercase">Price (₹ INR)</label>
+                  <label className="block text-xs font-bold text-stone-700 uppercase">Price (INR)</label>
                   <input
                     type="number"
+                    min="0"
                     required
-                    min={0}
                     value={itemFormData.price}
                     onChange={(e) => setItemFormData({ ...itemFormData, price: e.target.value })}
-                    placeholder="240"
-                    className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
+                    placeholder="220"
+                    className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm font-mono focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
 
@@ -502,33 +766,84 @@ export const MenuManager: React.FC = () => {
                   <label className="block text-xs font-bold text-stone-700 uppercase">Prep Time (Mins)</label>
                   <input
                     type="number"
-                    required
-                    min={1}
+                    min="1"
                     value={itemFormData.prepTimeEstimateMinutes}
                     onChange={(e) =>
                       setItemFormData({ ...itemFormData, prepTimeEstimateMinutes: e.target.value })
                     }
                     placeholder="15"
-                    className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
+                    className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm font-mono focus:ring-brand-500 focus:border-brand-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-stone-700 uppercase">Dietary Type</label>
                   <select
-                    value={itemFormData.isVeg ? 'VEG' : 'NON_VEG'}
+                    value={itemFormData.isVeg ? 'veg' : 'nonveg'}
                     onChange={(e) =>
-                      setItemFormData({ ...itemFormData, isVeg: e.target.value === 'VEG' })
+                      setItemFormData({ ...itemFormData, isVeg: e.target.value === 'veg' })
                     }
                     className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
                   >
-                    <option value="VEG">Vegetarian</option>
-                    <option value="NON_VEG">Non-Veg</option>
+                    <option value="veg">Vegetarian</option>
+                    <option value="nonveg">Non-Veg</option>
                   </select>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-stone-100">
+              {/* Inventory Tracking Toggle & Portions Input */}
+              <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={itemFormData.trackInventory}
+                    onChange={(e) =>
+                      setItemFormData({ ...itemFormData, trackInventory: e.target.checked })
+                    }
+                    className="rounded text-brand-600 focus:ring-brand-500"
+                  />
+                  <span className="text-xs font-bold text-stone-800">
+                    Track Daily Portions (Inventory Control)
+                  </span>
+                </label>
+
+                {itemFormData.trackInventory && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600">
+                        Available Portions (Initial)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={itemFormData.availableQuantity}
+                        onChange={(e) =>
+                          setItemFormData({ ...itemFormData, availableQuantity: e.target.value })
+                        }
+                        placeholder="25"
+                        className="mt-1 w-full px-3 py-1.5 border border-stone-300 rounded-lg text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600">
+                        Daily Portion Quota
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={itemFormData.dailyStockLimit}
+                        onChange={(e) =>
+                          setItemFormData({ ...itemFormData, dailyStockLimit: e.target.value })
+                        }
+                        placeholder="25"
+                        className="mt-1 w-full px-3 py-1.5 border border-stone-300 rounded-lg text-xs font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowItemModal(false)}
@@ -540,7 +855,7 @@ export const MenuManager: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-sm transition"
                 >
-                  Save Item
+                  Add Item with Stock Control
                 </button>
               </div>
             </form>

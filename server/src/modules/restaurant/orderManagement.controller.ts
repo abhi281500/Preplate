@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/index.js';
 import { Order, OrderStatus } from '../../models/Order.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.js';
+import { MenuItem } from '../../models/MenuItem.js';
 import { NotificationService } from '../../services/notificationService.js';
 
 // Permitted progressive status transitions
@@ -205,6 +206,18 @@ export const rejectOrder = async (
     order.status = 'REJECTED';
     order.rejectionReason = reason;
     await order.save();
+
+    // Replenish inventory for tracked items upon rejection
+    for (const itemSnapshot of order.items) {
+      const dbItem = await MenuItem.findById(itemSnapshot.menuItemId);
+      if (dbItem && dbItem.trackInventory) {
+        dbItem.availableQuantity = (dbItem.availableQuantity || 0) + itemSnapshot.quantity;
+        if (dbItem.availableQuantity > 0) {
+          dbItem.isAvailable = true;
+        }
+        await dbItem.save();
+      }
+    }
 
     await OrderStatusHistory.create({
       orderId: order._id,

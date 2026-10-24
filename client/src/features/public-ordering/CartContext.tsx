@@ -7,13 +7,21 @@ export interface CartItem {
   isVeg: boolean;
   prepTimeEstimateMinutes: number;
   quantity: number;
+  maxAvailable?: number;
 }
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (item: { id: string; name: string; price: number; isVeg: boolean; prepTimeEstimateMinutes: number }) => void;
+  addItem: (item: {
+    id: string;
+    name: string;
+    price: number;
+    isVeg: boolean;
+    prepTimeEstimateMinutes: number;
+    maxAvailable?: number;
+  }) => void;
   removeItem: (itemId: string) => void;
-  updateQuantity: (itemId: string, quantity: number) => void;
+  updateQuantity: (itemId: string, quantity: number, maxAvailable?: number) => void;
   clearCart: () => void;
   subtotal: number;
   taxAmount: number;
@@ -29,11 +37,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [items, setItems] = useState<CartItem[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const addItem = (item: { id: string; name: string; price: number; isVeg: boolean; prepTimeEstimateMinutes: number }) => {
+  const addItem = (item: {
+    id: string;
+    name: string;
+    price: number;
+    isVeg: boolean;
+    prepTimeEstimateMinutes: number;
+    maxAvailable?: number;
+  }) => {
     setItems((prev) => {
       const existing = prev.find((i) => i.id === item.id);
       if (existing) {
-        return prev.map((i) => (i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
+        const nextQty = existing.quantity + 1;
+        const max = item.maxAvailable ?? existing.maxAvailable;
+        if (max !== undefined && nextQty > max) {
+          alert(`Only ${max} portion(s) available in kitchen.`);
+          return prev;
+        }
+        return prev.map((i) => (i.id === item.id ? { ...i, quantity: nextQty } : i));
       }
       return [...prev, { ...item, quantity: 1 }];
     });
@@ -43,12 +64,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems((prev) => prev.filter((i) => i.id !== itemId));
   };
 
-  const updateQuantity = (itemId: string, quantity: number) => {
+  const updateQuantity = (itemId: string, quantity: number, maxAvailable?: number) => {
     if (quantity <= 0) {
       removeItem(itemId);
       return;
     }
-    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, quantity } : i)));
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id === itemId) {
+          const limit = maxAvailable ?? i.maxAvailable;
+          if (limit !== undefined && quantity > limit) {
+            alert(`Only ${limit} portion(s) available in kitchen.`);
+            return { ...i, quantity: limit };
+          }
+          return { ...i, quantity };
+        }
+        return i;
+      })
+    );
   };
 
   const clearCart = () => {

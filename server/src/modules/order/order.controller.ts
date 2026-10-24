@@ -104,7 +104,7 @@ export const createPublicOrder = async (
     // Map for fast retrieval
     const dbItemMap = new Map(dbMenuItems.map((item) => [item._id.toString(), item]));
 
-    // Check Availability (Sold-Out Check)
+    // Check Availability (Sold-Out & Portion Quota Check)
     for (const reqItem of items) {
       const dbItem = dbItemMap.get(reqItem.menuItemId)!;
       if (!dbItem.isAvailable) {
@@ -113,6 +113,24 @@ export const createPublicOrder = async (
           message: `Item "${dbItem.name}" is currently sold out and cannot be ordered.`
         });
         return;
+      }
+
+      if (dbItem.trackInventory) {
+        if (dbItem.availableQuantity <= 0) {
+          res.status(400).json({
+            success: false,
+            message: `Item "${dbItem.name}" has 0 portions remaining in kitchen (Sold Out).`
+          });
+          return;
+        }
+
+        if (dbItem.availableQuantity < reqItem.quantity) {
+          res.status(400).json({
+            success: false,
+            message: `Only ${dbItem.availableQuantity} portion(s) of "${dbItem.name}" available in kitchen. Cannot order ${reqItem.quantity}.`
+          });
+          return;
+        }
       }
     }
 
@@ -190,7 +208,20 @@ export const createPublicOrder = async (
       reason: 'Order request submitted by customer'
     });
 
-    // 10. Construct WhatsApp Assisted URL
+    // 10. Decrement stock quantity for inventory-tracked items
+    for (const reqItem of items) {
+      const dbItem = dbItemMap.get(reqItem.menuItemId)!;
+      if (dbItem.trackInventory) {
+        dbItem.availableQuantity = Math.max(0, dbItem.availableQuantity - reqItem.quantity);
+        dbItem.ordersCountToday = (dbItem.ordersCountToday || 0) + reqItem.quantity;
+        if (dbItem.availableQuantity === 0) {
+          dbItem.isAvailable = false;
+        }
+        await dbItem.save();
+      }
+    }
+
+    // 11. Construct WhatsApp Assisted URL
     const whatsAppLink = buildWhatsAppLink(
       restaurant.whatsappNumber,
       restaurant.name,
@@ -331,6 +362,18 @@ export const cancelPublicOrder = async (
     order.status = 'CANCELLED';
     order.cancellationReason = reason || 'Cancelled by customer before restaurant acceptance';
     await order.save();
+
+    // Replenish inventory for tracked items upon cancellation
+    for (const itemSnapshot of order.items) {
+      const dbItem = await MenuItem.findById(itemSnapshot.menuItemId);
+      if (dbItem && dbItem.trackInventory) {
+        dbItem.availableQuantity = (dbItem.availableQuantity || 0) + itemSnapshot.quantity;
+        if (dbItem.availableQuantity > 0) {
+          dbItem.isAvailable = true;
+        }
+        await dbItem.save();
+      }
+    }
 
     await OrderStatusHistory.create({
       orderId: order._id,

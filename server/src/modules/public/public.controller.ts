@@ -102,7 +102,7 @@ export const getPublicMenu = async (
 
     // Fetch all menu items for this restaurant
     const menuItems = await MenuItem.find({ tenantId })
-      .select('name description price isVeg prepTimeEstimateMinutes isAvailable imageUrl categoryId displayOrder')
+      .select('name description price isVeg prepTimeEstimateMinutes isAvailable trackInventory availableQuantity dailyStockLimit imageUrl categoryId displayOrder')
       .sort({ displayOrder: 1, createdAt: 1 });
 
     // Group items under active categories
@@ -126,7 +126,9 @@ export const getPublicMenu = async (
           price: item.price,
           isVeg: item.isVeg,
           prepTimeEstimateMinutes: item.prepTimeEstimateMinutes,
-          isAvailable: item.isAvailable,
+          isAvailable: item.isAvailable && (!item.trackInventory || (item.availableQuantity ?? 0) > 0),
+          trackInventory: item.trackInventory ?? false,
+          availableQuantity: item.availableQuantity ?? 0,
           imageUrl: item.imageUrl
         });
       }

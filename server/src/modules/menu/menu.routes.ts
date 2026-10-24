@@ -8,7 +8,8 @@ import {
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
-  toggleAvailability
+  toggleAvailability,
+  updateStockQuantity
 } from './menu.controller.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { enforceTenantContext } from '../../middleware/tenantContext.js';
@@ -72,6 +73,13 @@ router.patch(
   requireRole('RESTAURANT_OWNER', 'RESTAURANT_STAFF', 'SUPER_ADMIN'),
   validateRequest(toggleAvailabilitySchema),
   toggleAvailability
+);
+
+// Production Inventory & Portion Quota Control (Staff and Owners can adjust)
+router.patch(
+  '/menu-items/:id/stock',
+  requireRole('RESTAURANT_OWNER', 'RESTAURANT_STAFF', 'SUPER_ADMIN'),
+  updateStockQuantity
 );
 
 export default router;

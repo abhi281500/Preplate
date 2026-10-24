@@ -9,6 +9,10 @@ export interface IMenuItem extends Document {
   isVeg: boolean;
   prepTimeEstimateMinutes: number;
   isAvailable: boolean; // Toggled by staff/owner for 86ing
+  trackInventory: boolean; // false = unlimited, true = track portions
+  availableQuantity: number; // remaining stock portions
+  dailyStockLimit: number; // daily quota prepared
+  ordersCountToday: number; // portions sold today
   imageUrl?: string;
   displayOrder: number;
   createdAt: Date;
@@ -25,6 +29,10 @@ const MenuItemSchema = new Schema<IMenuItem>(
     isVeg: { type: Boolean, default: true },
     prepTimeEstimateMinutes: { type: Number, default: 15, min: 1 },
     isAvailable: { type: Boolean, default: true, index: true },
+    trackInventory: { type: Boolean, default: false },
+    availableQuantity: { type: Number, default: 20, min: 0 },
+    dailyStockLimit: { type: Number, default: 20, min: 0 },
+    ordersCountToday: { type: Number, default: 0, min: 0 },
     imageUrl: { type: String, trim: true },
     displayOrder: { type: Number, default: 0 }
   },
