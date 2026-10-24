@@ -14,6 +14,7 @@ import {
   restaurantNotificationRouter,
   webhookRouter
 } from './modules/notification/notification.routes.js';
+import superRoutes from './modules/super/super.routes.js';
 
 export const createApp = (customRoutes?: { path: string; router: express.Router }[]) => {
   const app = express();
@@ -58,6 +59,7 @@ export const createApp = (customRoutes?: { path: string; router: express.Router 
   apiRouter.use('/restaurant', orderManagementRoutes);
   apiRouter.use('/restaurant/notifications', restaurantNotificationRouter);
   apiRouter.use('/webhook', webhookRouter);
+  apiRouter.use('/super', superRoutes);
 
   if (customRoutes) {
     for (const route of customRoutes) {
