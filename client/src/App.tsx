@@ -4,6 +4,7 @@ import { LandingPage } from './features/landing/LandingPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterRestaurantPage } from './features/auth/RegisterRestaurantPage';
 import { PublicMenuPortal } from './features/public-ordering/PublicMenuPortal';
+import { OrderTrackingPage } from './features/public-ordering/OrderTrackingPage';
 import { RestaurantDashboard } from './features/restaurant/RestaurantDashboard';
 import { SuperAdminDashboard } from './features/super-admin/SuperAdminDashboard';
 import { useAuth } from './shared/AuthContext';
@@ -42,6 +43,7 @@ export const App: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterRestaurantPage />} />
       <Route path="/r/:slug" element={<PublicMenuPortal />} />
+      <Route path="/r/:slug/order/:orderReference" element={<OrderTrackingPage />} />
 
       {/* Protected Restaurant Admin */}
       <Route

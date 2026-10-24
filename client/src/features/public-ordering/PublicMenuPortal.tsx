@@ -13,9 +13,13 @@ import {
   ArrowLeft,
   ChevronRight,
   ShieldCheck,
-  Plus
+  Plus,
+  Minus,
+  ShoppingBag
 } from 'lucide-react';
 import api from '../../shared/api';
+import { CartProvider, useCart } from './CartContext';
+import { CartDrawer } from './CartDrawer';
 
 interface MenuItem {
   id: string;
@@ -62,7 +66,7 @@ interface RestaurantProfile {
   };
 }
 
-export const PublicMenuPortal: React.FC = () => {
+const MenuContent: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
 
   const [restaurant, setRestaurant] = useState<RestaurantProfile | null>(null);
@@ -72,6 +76,8 @@ export const PublicMenuPortal: React.FC = () => {
   const [dietaryFilter, setDietaryFilter] = useState<'ALL' | 'VEG' | 'NON_VEG'>('ALL');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const { items: cartItems, addItem, updateQuantity, subtotal, totalCount, setIsDrawerOpen } = useCart();
 
   useEffect(() => {
     const fetchRestaurantAndMenu = async () => {
@@ -151,7 +157,7 @@ export const PublicMenuPortal: React.FC = () => {
   const totalFilteredItems = filteredCategories.reduce((acc, cat) => acc + cat.items.length, 0);
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-20 selection:bg-brand-500 selection:text-white">
+    <div className="min-h-screen bg-stone-50 pb-24 selection:bg-brand-500 selection:text-white relative">
       {/* Top Header */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-40 backdrop-blur-md bg-white/90">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -359,88 +365,151 @@ export const PublicMenuPortal: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {category.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`bg-white rounded-2xl border transition overflow-hidden flex flex-col justify-between p-4 shadow-sm ${
-                      item.isAvailable
-                        ? 'border-stone-200 hover:border-brand-300 hover:shadow-md'
-                        : 'border-stone-200/70 bg-stone-50/50 opacity-75'
-                    }`}
-                  >
-                    <div>
-                      {/* Dietary Tag & Sold Out Badge */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wide uppercase ${
-                            item.isVeg
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                              item.isVeg ? 'bg-emerald-600' : 'bg-rose-600'
-                            }`}
-                          ></span>
-                          {item.isVeg ? 'Vegetarian' : 'Non-Veg'}
-                        </span>
+                {category.items.map((item) => {
+                  const cartItem = cartItems.find((i) => i.id === item.id);
+                  const inCartQuantity = cartItem ? cartItem.quantity : 0;
 
-                        {!item.isAvailable && (
-                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-100 text-rose-800">
-                            Sold Out
+                  return (
+                    <div
+                      key={item.id}
+                      className={`bg-white rounded-2xl border transition overflow-hidden flex flex-col justify-between p-4 shadow-sm ${
+                        item.isAvailable
+                          ? 'border-stone-200 hover:border-brand-300 hover:shadow-md'
+                          : 'border-stone-200/70 bg-stone-50/50 opacity-75'
+                      }`}
+                    >
+                      <div>
+                        {/* Dietary Tag & Sold Out Badge */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wide uppercase ${
+                              item.isVeg
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                                item.isVeg ? 'bg-emerald-600' : 'bg-rose-600'
+                              }`}
+                            ></span>
+                            {item.isVeg ? 'Vegetarian' : 'Non-Veg'}
                           </span>
+
+                          {!item.isAvailable && (
+                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-100 text-rose-800">
+                              Sold Out
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Item Name & Description */}
+                        <h3 className="text-base font-bold text-stone-900 leading-snug">
+                          {item.name}
+                        </h3>
+                        {item.description && (
+                          <p className="mt-1 text-xs text-stone-500 line-clamp-2 leading-relaxed">
+                            {item.description}
+                          </p>
                         )}
                       </div>
 
-                      {/* Item Name & Description */}
-                      <h3 className="text-base font-bold text-stone-900 leading-snug">
-                        {item.name}
-                      </h3>
-                      {item.description && (
-                        <p className="mt-1 text-xs text-stone-500 line-clamp-2 leading-relaxed">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Price, Prep Time, & Cart Action */}
-                    <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
-                      <div>
-                        <span className="text-lg font-extrabold text-stone-900">
-                          ₹{item.price}
-                        </span>
-                        <div className="flex items-center text-[10px] text-stone-400 mt-0.5">
-                          <Clock className="w-3 h-3 mr-1 text-stone-400" />
-                          <span>~{item.prepTimeEstimateMinutes}m prep</span>
+                      {/* Price, Prep Time, & Cart Action */}
+                      <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
+                        <div>
+                          <span className="text-lg font-extrabold text-stone-900">
+                            ₹{item.price}
+                          </span>
+                          <div className="flex items-center text-[10px] text-stone-400 mt-0.5">
+                            <Clock className="w-3 h-3 mr-1 text-stone-400" />
+                            <span>~{item.prepTimeEstimateMinutes}m prep</span>
+                          </div>
                         </div>
-                      </div>
 
-                      {item.isAvailable ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-xs border border-brand-200 shadow-sm transition active:scale-95"
-                          onClick={() => {
-                            // Phase 3 Cart hook attachment
-                            alert(`Phase 3 Ordering Engine will add "${item.name}" (₹${item.price}) to cart with ETA selector.`);
-                          }}
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add</span>
-                        </button>
-                      ) : (
-                        <span className="text-xs font-semibold text-stone-400 cursor-not-allowed">
-                          Unavailable
-                        </span>
-                      )}
+                        {item.isAvailable ? (
+                          inCartQuantity > 0 ? (
+                            <div className="flex items-center space-x-2 bg-stone-100 rounded-xl p-1 border border-stone-200">
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(item.id, inCartQuantity - 1)}
+                                className="p-1 rounded-lg text-stone-700 hover:bg-white transition"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="w-5 text-center font-bold text-xs text-stone-900">
+                                {inCartQuantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(item.id, inCartQuantity + 1)}
+                                className="p-1 rounded-lg text-stone-700 hover:bg-white transition"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-xs border border-brand-200 shadow-sm transition active:scale-95"
+                              onClick={() => addItem(item)}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Add</span>
+                            </button>
+                          )
+                        ) : (
+                          <span className="text-xs font-semibold text-stone-400 cursor-not-allowed">
+                            Unavailable
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           ))
         )}
       </main>
+
+      {/* Floating Bottom Cart Bar */}
+      {totalCount > 0 && (
+        <div className="fixed bottom-0 inset-x-0 z-40 p-4 bg-gradient-to-t from-stone-900/40 via-stone-900/10 to-transparent pointer-events-none">
+          <div className="max-w-md mx-auto pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => setIsDrawerOpen(true)}
+              className="w-full py-3 px-5 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-xl shadow-brand-600/40 flex items-center justify-between transition transform active:scale-98"
+            >
+              <div className="flex items-center space-x-2 text-left">
+                <span className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-xs">
+                  {totalCount}
+                </span>
+                <span className="text-sm font-extrabold">₹{subtotal} Subtotal</span>
+              </div>
+              <div className="flex items-center space-x-1 text-xs font-bold">
+                <span>View Cart & Set Arrival</span>
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cart Drawer */}
+      <CartDrawer
+        slug={slug!}
+        orderBufferMinutes={restaurant.settings.orderBufferMinutes}
+        minimumOrderAmount={restaurant.settings.minimumOrderAmount}
+      />
     </div>
+  );
+};
+
+export const PublicMenuPortal: React.FC = () => {
+  return (
+    <CartProvider>
+      <MenuContent />
+    </CartProvider>
   );
 };
