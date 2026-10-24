@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/index.js';
 import { Order, OrderStatus } from '../../models/Order.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.js';
+import { NotificationService } from '../../services/notificationService.js';
 
 // Permitted progressive status transitions
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -153,6 +154,16 @@ export const acceptOrder = async (
       reason: `Order accepted with ~${prepDurationMinutes} mins estimated prep duration`
     });
 
+    await NotificationService.logClickToChat({
+      tenantId: req.tenantId!,
+      orderId: order._id,
+      orderReference: order.orderReference,
+      recipientPhone: order.customer.phone,
+      recipientRole: 'CUSTOMER',
+      purpose: 'ORDER_ACCEPTED_ALERT',
+      messagePayload: `Your order #${order.orderReference} was accepted. Estimated ready time: ${estimatedReadyTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    });
+
     res.status(200).json({
       success: true,
       message: `Order #${order.orderReference} accepted. Ready estimate: ${estimatedReadyTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
@@ -207,6 +218,16 @@ export const rejectOrder = async (
         name: req.user?.name || 'Staff'
       },
       reason
+    });
+
+    await NotificationService.logClickToChat({
+      tenantId: req.tenantId!,
+      orderId: order._id,
+      orderReference: order.orderReference,
+      recipientPhone: order.customer.phone,
+      recipientRole: 'CUSTOMER',
+      purpose: 'ORDER_REJECTED_ALERT',
+      messagePayload: `Your order #${order.orderReference} was declined by the restaurant: ${reason}`
     });
 
     res.status(200).json({
@@ -276,6 +297,18 @@ export const updateOrderStatus = async (
       },
       reason: `Status advanced to ${nextStatus}`
     });
+
+    if (nextStatus === 'READY') {
+      await NotificationService.logClickToChat({
+        tenantId: req.tenantId!,
+        orderId: order._id,
+        orderReference: order.orderReference,
+        recipientPhone: order.customer.phone,
+        recipientRole: 'CUSTOMER',
+        purpose: 'ORDER_READY_ALERT',
+        messagePayload: `Your order #${order.orderReference} is ready! Please collect your food at the counter.`
+      });
+    }
 
     res.status(200).json({
       success: true,

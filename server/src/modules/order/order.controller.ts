@@ -6,6 +6,7 @@ import { Order } from '../../models/Order.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.js';
 import { env } from '../../config/env.js';
 import { generateOrderReference, buildWhatsAppLink } from './order.utils.js';
+import { NotificationService } from '../../services/notificationService.js';
 
 export const createPublicOrder = async (
   req: Request,
@@ -196,6 +197,17 @@ export const createPublicOrder = async (
       order,
       env.CLIENT_ORIGIN
     );
+
+    // 11. Log WhatsApp deep-link generation
+    await NotificationService.logClickToChat({
+      tenantId,
+      orderId: order._id,
+      orderReference: order.orderReference,
+      recipientPhone: restaurant.whatsappNumber,
+      recipientRole: 'RESTAURANT',
+      purpose: 'ORDER_SUBMITTED_REQUEST',
+      messagePayload: `Order #${order.orderReference} request placed by ${customer.name.trim()} for ETA ${arrivalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Total: ₹${order.pricing.totalAmount})`
+    });
 
     res.status(201).json({
       success: true,

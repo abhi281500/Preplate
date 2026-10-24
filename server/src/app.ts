@@ -10,6 +10,10 @@ import menuRoutes from './modules/menu/menu.routes.js';
 import publicRoutes from './modules/public/public.routes.js';
 import orderRoutes from './modules/order/order.routes.js';
 import orderManagementRoutes from './modules/restaurant/orderManagement.routes.js';
+import {
+  restaurantNotificationRouter,
+  webhookRouter
+} from './modules/notification/notification.routes.js';
 
 export const createApp = (customRoutes?: { path: string; router: express.Router }[]) => {
   const app = express();
@@ -52,6 +56,8 @@ export const createApp = (customRoutes?: { path: string; router: express.Router 
   apiRouter.use('/restaurant', restaurantRoutes);
   apiRouter.use('/restaurant', menuRoutes);
   apiRouter.use('/restaurant', orderManagementRoutes);
+  apiRouter.use('/restaurant/notifications', restaurantNotificationRouter);
+  apiRouter.use('/webhook', webhookRouter);
 
   if (customRoutes) {
     for (const route of customRoutes) {

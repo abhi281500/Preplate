@@ -9,7 +9,8 @@ import {
   ChefHat,
   Bell,
   FileText,
-  Clock
+  Clock,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../shared/AuthContext';
 import { IncomingOrderQueue } from './IncomingOrderQueue';
@@ -17,13 +18,14 @@ import { KitchenDisplaySystem } from '../kitchen/KitchenDisplaySystem';
 import { MenuManager } from './MenuManager';
 import { OrderHistoryAndReports } from './OrderHistoryAndReports';
 import { RestaurantProfileSettings } from './RestaurantProfileSettings';
+import { WhatsAppNotificationSettings } from './WhatsAppNotificationSettings';
 import api from '../../shared/api';
 
 export const RestaurantDashboard: React.FC = () => {
   const { user, restaurant, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'queue' | 'kds' | 'menu' | 'history' | 'settings'>('queue');
+  const [activeTab, setActiveTab] = useState<'queue' | 'kds' | 'menu' | 'history' | 'notifications' | 'settings'>('queue');
   const [pendingCount, setPendingCount] = useState<number>(0);
 
   const fetchQueueSummary = async () => {
@@ -163,7 +165,20 @@ export const RestaurantDashboard: React.FC = () => {
             <span>Order History & Metrics</span>
           </button>
 
-          {/* Tab 5: Settings */}
+          {/* Tab 5: WhatsApp Notifications */}
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+              activeTab === 'notifications'
+                ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30'
+                : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>WhatsApp & Notifications</span>
+          </button>
+
+          {/* Tab 6: Settings */}
           <button
             onClick={() => setActiveTab('settings')}
             className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
@@ -182,6 +197,7 @@ export const RestaurantDashboard: React.FC = () => {
         {activeTab === 'kds' && <KitchenDisplaySystem />}
         {activeTab === 'menu' && <MenuManager />}
         {activeTab === 'history' && <OrderHistoryAndReports />}
+        {activeTab === 'notifications' && <WhatsAppNotificationSettings />}
         {activeTab === 'settings' && <RestaurantProfileSettings />}
       </main>
     </div>
