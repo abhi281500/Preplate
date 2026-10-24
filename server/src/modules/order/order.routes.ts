@@ -6,10 +6,16 @@ import {
 } from './order.controller.js';
 import { validateRequest } from '../../middleware/validate.js';
 import { createOrderSchema, cancelOrderSchema } from './order.schema.js';
+import { orderPlacementRateLimiter } from '../../middleware/rateLimiter.js';
 
 const router = Router();
 
-router.post('/restaurants/:slug/orders', validateRequest(createOrderSchema), createPublicOrder);
+router.post(
+  '/restaurants/:slug/orders',
+  orderPlacementRateLimiter,
+  validateRequest(createOrderSchema),
+  createPublicOrder
+);
 router.get('/restaurants/:slug/orders/:orderReference', getPublicOrder);
 router.post(
   '/restaurants/:slug/orders/:orderReference/cancel',

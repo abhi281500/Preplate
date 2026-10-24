@@ -213,6 +213,8 @@ export const createPublicOrder = async (
       success: true,
       message: 'Order request successfully placed and awaiting restaurant confirmation.',
       data: {
+        id: order._id,
+        _id: order._id,
         orderReference: order.orderReference,
         status: order.status,
         expectedArrivalTime: order.scheduling.expectedArrivalTime,

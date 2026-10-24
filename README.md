@@ -1,89 +1,137 @@
 # Preplate 🍽️
 
-> **Multi-tenant B2B SaaS platform for restaurant pre-arrival food ordering, preparation-time coordination, and WhatsApp-assisted communication.**
+> **Production-Oriented, Multi-Tenant B2B SaaS Platform for Restaurant Pre-Arrival Ordering, Kitchen Coordination, and WhatsApp-Assisted Communication.**
 
-Preplate empowers dine-in restaurants, highway eateries, corporate cafes, and campus food hubs to coordinate food preparation with customer arrival times—reducing idle wait times without predatory delivery aggregator commissions.
-
----
-
-## 🌟 Key Features
-
-* **Multi-Tenant Architecture:** Complete data isolation by `tenantId` across all databases, queries, and APIs.
-* **Role-Based Access Control (RBAC):** Distinct permissions for `SUPER_ADMIN`, `RESTAURANT_OWNER`, and `RESTAURANT_STAFF`.
-* **Guest Ordering Portal:** Mobile-first, lightweight web application (`/r/:restaurantSlug`) requiring zero mandatory sign-up.
-* **ETA & Prep Coordination:** Validated arrival times, minimum kitchen buffer, and real-time state machine (`PENDING_CONFIRMATION` → `ACCEPTED` → `PREPARING` → `READY` → `SERVED`).
-* **WhatsApp Assistance:** One-tap contextual order notification links (`wa.me`) with full item summaries.
-* **Touch-Friendly KDS & Instant 86ing:** Kitchen Display System for quick ticket advancement and immediate out-of-stock toggles.
-* **Configurable SaaS Subscription Plans:** Database-driven plans (`STARTER`, `PRO`, `ENTERPRISE`) with INR pricing and feature caps.
+[![Tests](https://img.shields.io/badge/Tests-81%20Passed-brightgreen)](https://github.com/abhi281500/Preplate)
+[![Node](https://img.shields.io/badge/Node-v22.19.0-blue)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18.3-blue)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v3.4-38B2AC)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ---
 
-## 🏗️ Repository Architecture
+## 🌟 The Business Purpose
 
-Preplate is architected as a clean modular monolith:
+Dine-in customers at highway restaurants, busy cafes, and commercial dining hubs lose an average of **25–40 minutes** waiting for food after arrival. Preplate solves this by providing independent restaurants with their own branded pre-arrival ordering portal:
+
+1. **Customers order before arrival:** Guests select items, specify their expected arrival time (ETA), and receive a verified reference code with a prefilled WhatsApp link.
+2. **Kitchens prepare on time:** Kitchen staff receive orders with a customizable preparation buffer (e.g. 20 minutes) and accept tickets with accurate duration estimates.
+3. **Food is ready on arrival:** Meals are served hot and fresh when guests walk in, eliminating table wait times without predatory third-party aggregator commissions.
+
+---
+
+## 🏗️ Architecture & Technical Core
+
+Preplate is built as a **clean, modular TypeScript monolith** designed for high auditability and zero cross-tenant leakage:
+
+- **Frontend:** React 18 + Vite + Tailwind CSS + Lucide Icons + Axios API client.
+- **Backend:** Node.js + Express + TypeScript + Zod schema validation + Helmet + Rate Limiting.
+- **Database:** MongoDB with strict compound tenant indexing (`tenantId` + `_id` / `slug`).
+- **Security & Multi-Tenancy:** Tenant context is pinned directly from cryptographically signed JWT tokens. In-flight header spoofing (`x-tenant-id`) is proactively detected and rejected (`403 Forbidden`).
+- **Zero Client Trust:** Pricing calculations (5% GST, line subtotals, grand totals) are strictly performed on the backend. Item names and prices are frozen as immutable snapshots on order creation.
 
 ```
 c:\Restaurant\
-├── client/                     # React 18 + Vite + Tailwind CSS Single-Page Application
+├── client/                     # Single-Page Web Application
 │   ├── src/
 │   │   ├── features/
-│   │   │   ├── landing/        # SaaS Marketing & Demo Showcase
+│   │   │   ├── landing/        # Preplate SaaS Landing Page
 │   │   │   ├── auth/           # Login & Restaurant Self-Onboarding
-│   │   │   ├── public-ordering/# Customer Menu & Cart
-│   │   │   ├── restaurant/     # Owner Dashboard & Kitchen View
-│   │   │   └── super-admin/    # SaaS Platform Administrator Portal
-│   │   └── shared/             # API client (Axios) & AuthContext
-├── server/                     # Node.js + Express + TypeScript Backend
+│   │   │   ├── public-ordering/# Customer Storefront, Cart & Live Tracking
+│   │   │   ├── restaurant/     # Owner Dashboard, Queue, Stock 86ing, Settings
+│   │   │   ├── kitchen/        # Touch-Friendly Kitchen Display System (KDS)
+│   │   │   └── super-admin/    # Global Multi-Tenant SaaS Control Plane
+│   │   └── shared/             # API client, Auth Context, Types
+├── server/                     # Express + TypeScript Modular Monolith
 │   ├── src/
-│   │   ├── config/             # Typed Environment (Zod) & Mongoose DB connection
-│   │   ├── models/             # Mongoose schemas with tenant isolation indexing
-│   │   ├── middleware/         # enforceTenantContext, requireAuth, validateRequest, errorHandler
-│   │   ├── modules/            # Domain modules (auth, menu, orders, analytics, super-admin)
-│   │   ├── scripts/            # Seed utility (Demo restaurants & super admin)
-│   │   └── tests/              # Vitest + Supertest integration & tenant isolation test suite
-├── docs/                       # Complete architectural and operational specifications
+│   │   ├── config/             # Typed Environment Config (Zod) & Mongoose DB
+│   │   ├── middleware/         # requireAuth, requireRole, enforceTenantContext, rateLimiter
+│   │   ├── models/             # Tenant-scoped Mongoose models
+│   │   ├── modules/
+│   │   │   ├── auth/           # JWT authentication & restaurant self-onboarding
+│   │   │   ├── public/         # Public restaurant directory & menu queries
+│   │   │   ├── order/          # Order placement, price snapshots, tracking
+│   │   │   ├── restaurant/     # Menu management, 86ing, operations, KDS, analytics
+│   │   │   ├── notification/   # WhatsApp deep links, Cloud API adapter, webhooks
+│   │   │   └── super/          # Multi-tenant moderation, GMV analytics, plan editor
+│   │   ├── services/           # Unified notification dispatch & link builder
+│   │   ├── scripts/            # Database seed script
+│   │   └── tests/              # 8 Vitest integration suites (81 tests)
+├── docs/                       # Engineering & Operational Specifications
 │   ├── PRODUCT_REQUIREMENTS.md
 │   ├── ARCHITECTURE.md
 │   ├── DATABASE_SCHEMA.md
 │   ├── SECURITY.md
 │   ├── WHATSAPP_INTEGRATION.md
-│   └── TESTING.md
-├── .env.example                # Safe environment variable template
-└── package.json                # Root npm workspace orchestrator
+│   ├── TESTING.md
+│   └── PILOT_RUNBOOK.md        # Pilot execution & Kitchen Staff SOP
 ```
 
 ---
 
-## 🚀 Quickstart Guide
+## 🧪 Comprehensive Automated Test Matrix
+
+All **81 automated test cases** run against an isolated in-memory MongoDB server:
+
+| Test Suite | File | Tests | Key Validations Covered |
+|---|---|:---:|---|
+| **1. Auth & Isolation** | `authAndTenantIsolation.test.ts` | 9 | JWT issuance, password hashing, RBAC enforcement, self-onboarding |
+| **2. Tenant Scoping** | `tenantEnforcement.test.ts` | 5 | Cross-tenant spoofing rejection, suspended account blocking |
+| **3. Menu & Profile** | `menuAndProfile.test.ts` | 15 | Category CRUD, item CRUD, instant 86ing, operating hours |
+| **4. Order Engine** | `orderEngine.test.ts` | 9 | Server pricing, 5% GST, arrival buffers, immutable snapshots |
+| **5. Operations & KDS** | `restaurantOperations.test.ts` | 9 | Queue badges, prep estimation, KDS status lifecycle, metrics |
+| **6. WhatsApp & Alerts** | `whatsappNotification.test.ts` | 10 | Deep-link generation, audit logging, Meta webhook verification |
+| **7. Super Admin SaaS** | `superAdminManagement.test.ts` | 12 | Platform GMV, tenant moderation, plan pricing in INR, audit log |
+| **8. E2E Lifecycle** | `endToEndLifecycle.test.ts` | 12 | Full journey: Admin → Onboard → Menu → Order → Cook → Serve → Report |
+| **Total** | **8 Test Suites** | **81** | **100% Passed** |
+
+---
+
+## 🔑 Demo Seed Accounts
+
+Use these pre-seeded accounts to explore the platform:
+
+| Role | Email | Password | Tenant / Portal |
+|---|---|---|---|
+| **Platform Super Admin** | `superadmin@preplate.io` | `Admin@Preplate2026!` | Global SaaS Control Plane (`/admin/super`) |
+| **Restaurant Owner (Dhaba)** | `owner@highwaydhaba.com` | `DhabaOwner@123` | Highway Dhaba Express (`/admin/restaurant`) |
+| **Kitchen Staff (Dhaba)** | `kitchen@highwaydhaba.com` | `KitchenStaff@123` | Dhaba KDS View (`/admin/restaurant`) |
+| **Restaurant Owner (Cafe)** | `owner@urbanspice.com` | `UrbanOwner@123` | Urban Spice Cafe (`/admin/restaurant`) |
+| **Guest Customer** | *No account required* | *Zero login barrier* | Public Storefront (`/r/highway-dhaba`) |
+
+---
+
+## 🚀 Getting Started
 
 ### 1. Prerequisites
 - **Node.js:** v18+ (Tested on v22.19.0)
-- **MongoDB:** MongoDB Atlas or local MongoDB daemon. (Automated tests use an in-memory database and run zero-dependency).
+- **MongoDB:** MongoDB Atlas or local MongoDB daemon.
 
-### 2. Environment Setup
+### 2. Configure Environment
 ```bash
 cp .env.example .env
 ```
 
 ### 3. Install Dependencies
 ```bash
-# Install server dependencies
+# Server dependencies
 cd server
 npm install
 
-# Install client dependencies
+# Client dependencies
 cd ../client
 npm install
 ```
 
 ### 4. Seed the Database
-Seeds the Super Admin account, subscription plans, and two pilot demo restaurants (*Highway Dhaba Express* and *Urban Spice Cafe*):
+Populates Super Admin, subscription tiers (Starter ₹499/mo, Pro ₹999/mo), and pilot demo restaurants:
 ```bash
 cd server
 npm run seed
 ```
 
-### 5. Run Automated Tests
+### 5. Run the Automated Test Suite
 ```bash
 cd server
 npm test
@@ -91,29 +139,28 @@ npm test
 
 ### 6. Start Development Servers
 ```bash
-# Run server (port 5000)
+# Terminal 1: Backend API (port 5000)
 cd server
 npm run dev
 
-# In a separate terminal, run client (port 5173)
+# Terminal 2: Frontend Client (port 5173)
 cd client
 npm run dev
 ```
 
----
-
-## 🔑 Demo Seed Accounts
-
-| Role | Email | Password | Scope / Slug |
-|---|---|---|---|
-| **Platform Super Admin** | `superadmin@preplate.io` | `Admin@Preplate2026!` | SaaS-wide control plane |
-| **Restaurant Owner (Highway Dhaba)** | `owner@highwaydhaba.com` | `DhabaOwner@123` | `/r/highway-dhaba` |
-| **Kitchen Staff (Highway Dhaba)** | `kitchen@highwaydhaba.com` | `KitchenStaff@123` | Kitchen Display View |
-| **Restaurant Owner (Urban Spice)** | `owner@urbanspice.com` | `UrbanOwner@123` | `/r/urban-spice` |
+Visit `http://localhost:5173` in your browser.
 
 ---
 
-## 🛡️ Security & Multi-Tenancy Guarantee
-- Tenant identity (`tenantId`) is always extracted from the verified cryptographic JWT bearer token—never from user-controlled URLs or request payloads.
-- Automated cross-tenant tests verify that Restaurant A cannot read, modify, or spoof Restaurant B's data under any condition.
-- Client-calculated totals are never accepted; the backend is the sole source of truth for menu pricing, availability, and arrival buffers.
+## 🛡️ Production & Security Hardening Features
+
+- **Rate Limiting:** Sliding-window rate limiters protect authentication (`/api/v1/auth/*`) and public order placement (`/api/v1/public/restaurants/:slug/orders`) against brute force and automated spam.
+- **Graceful Shutdown:** Handles `SIGINT` and `SIGTERM` signals, closes active HTTP listeners, and safely disconnects Mongoose connections.
+- **Strict Tenant Context Middleware:** Pinned `req.tenantId` is immutable and cannot be overwritten by client-supplied query params or spoofed headers.
+- **Instant Stock 86ing:** One-click out-of-stock toggle immediately rejects checkout attempts with an informative customer warning.
+- **Configurable Subscription Plans:** SaaS pricing and features are controlled dynamically via the Super Admin portal, eliminating hardcoded prices.
+
+---
+
+## 📄 License
+This project is licensed under the MIT License.
