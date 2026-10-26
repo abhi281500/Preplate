@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../../types/index.js';
 import { Order, OrderStatus } from '../../models/Order.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.js';
 import { MenuItem } from '../../models/MenuItem.js';
+import { Payment } from '../../models/Payment.js';
 import { NotificationService } from '../../services/notificationService.js';
 
 // Permitted progressive status transitions
@@ -207,6 +208,12 @@ export const rejectOrder = async (
     order.rejectionReason = reason;
     await order.save();
 
+    // Mark payment as FAILED
+    await Payment.updateOne(
+      { tenantId: req.tenantId, orderId: order._id },
+      { status: 'FAILED' }
+    );
+
     // Replenish inventory for tracked items upon rejection
     for (const itemSnapshot of order.items) {
       const dbItem = await MenuItem.findById(itemSnapshot.menuItemId);
@@ -292,6 +299,11 @@ export const updateOrderStatus = async (
       // If paying at restaurant, mark payment status as PAID upon food handover
       if (order.payment.method === 'PAY_AT_RESTAURANT' || order.payment.method === 'UPI_ON_ARRIVAL') {
         order.payment.status = 'PAID';
+        order.payment.paidAt = new Date();
+        await Payment.updateOne(
+          { tenantId: req.tenantId, orderId: order._id },
+          { status: 'COMPLETED', completedAt: new Date() }
+        );
       }
     }
 

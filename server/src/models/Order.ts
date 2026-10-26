@@ -45,6 +45,7 @@ export interface IOrderPayment {
   method: PaymentMethod;
   status: PaymentStatus;
   transactionReference?: string;
+  paidAt?: Date;
 }
 
 export interface IOrder extends Document {
@@ -114,7 +115,8 @@ const OrderPaymentSchema = new Schema<IOrderPayment>(
       enum: ['PENDING', 'PAID', 'REFUNDED'],
       default: 'PENDING'
     },
-    transactionReference: { type: String }
+    transactionReference: { type: String },
+    paidAt: { type: Date }
   },
   { _id: false }
 );

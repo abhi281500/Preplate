@@ -4,8 +4,10 @@ import { Restaurant } from '../../models/Restaurant.js';
 import { MenuItem } from '../../models/MenuItem.js';
 import { Order } from '../../models/Order.js';
 import { OrderStatusHistory } from '../../models/OrderStatusHistory.js';
+import { Payment } from '../../models/Payment.js';
+import { IdempotencyKey } from '../../models/IdempotencyKey.js';
 import { env } from '../../config/env.js';
-import { generateOrderReference, buildWhatsAppLink } from './order.utils.js';
+import { generateOrderReference, buildWhatsAppLink, maskPhoneNumber } from './order.utils.js';
 import { NotificationService } from '../../services/notificationService.js';
 
 export const createPublicOrder = async (
@@ -32,6 +34,24 @@ export const createPublicOrder = async (
     }
 
     const tenantId = restaurant.tenantId;
+
+    // Idempotency check to prevent duplicate order creation on network retries
+    const rawIdempotencyKey = req.headers['idempotency-key'] || req.headers['x-idempotency-key'];
+    const idempotencyKey = typeof rawIdempotencyKey === 'string' && rawIdempotencyKey.trim() 
+      ? rawIdempotencyKey.trim() 
+      : undefined;
+
+    if (idempotencyKey) {
+      const cached = await IdempotencyKey.findOne({
+        tenantId,
+        key: idempotencyKey
+      });
+      if (cached) {
+        res.status(cached.statusCode).json(cached.responseBody);
+        return;
+      }
+    }
+
     const arrivalDate = new Date(expectedArrivalTime);
     const now = new Date();
 
@@ -208,7 +228,27 @@ export const createPublicOrder = async (
       reason: 'Order request submitted by customer'
     });
 
-    // 10. Decrement stock quantity for inventory-tracked items
+    // 10. Persist dedicated Payment Record
+    await Payment.create({
+      tenantId,
+      orderId: order._id,
+      orderReference: order.orderReference,
+      amount: order.pricing.totalAmount,
+      currency: 'INR',
+      method: paymentMethod || 'PAY_AT_RESTAURANT',
+      status: 'PENDING',
+      provider: paymentMethod === 'RAZORPAY_ONLINE' ? 'RAZORPAY' : 'MANUAL_CASHIER',
+      idempotencyKey: idempotencyKey || undefined,
+      attempts: [
+        {
+          timestamp: new Date(),
+          status: 'PENDING',
+          providerResponse: 'Awaiting customer arrival or cashier settlement'
+        }
+      ]
+    });
+
+    // 11. Decrement stock quantity for inventory-tracked items
     for (const reqItem of items) {
       const dbItem = dbItemMap.get(reqItem.menuItemId)!;
       if (dbItem.trackInventory) {
@@ -221,7 +261,7 @@ export const createPublicOrder = async (
       }
     }
 
-    // 11. Construct WhatsApp Assisted URL
+    // 12. Construct WhatsApp Assisted URL
     const whatsAppLink = buildWhatsAppLink(
       restaurant.whatsappNumber,
       restaurant.name,
@@ -229,7 +269,7 @@ export const createPublicOrder = async (
       env.CLIENT_ORIGIN
     );
 
-    // 11. Log WhatsApp deep-link generation
+    // 13. Log WhatsApp deep-link generation
     await NotificationService.logClickToChat({
       tenantId,
       orderId: order._id,
@@ -240,7 +280,7 @@ export const createPublicOrder = async (
       messagePayload: `Order #${order.orderReference} request placed by ${customer.name.trim()} for ETA ${arrivalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (Total: ₹${order.pricing.totalAmount})`
     });
 
-    res.status(201).json({
+    const responsePayload = {
       success: true,
       message: 'Order request successfully placed and awaiting restaurant confirmation.',
       data: {
@@ -256,7 +296,24 @@ export const createPublicOrder = async (
         whatsAppLink,
         trackingUrl: `/r/${slug}/order/${order.orderReference}`
       }
-    });
+    };
+
+    // Cache idempotency response if key was provided
+    if (idempotencyKey) {
+      try {
+        await IdempotencyKey.create({
+          key: idempotencyKey,
+          tenantId,
+          endpoint: req.originalUrl,
+          statusCode: 201,
+          responseBody: responsePayload
+        });
+      } catch (err) {
+        // Safe catch on duplicate key collision
+      }
+    }
+
+    res.status(201).json(responsePayload);
   } catch (error) {
     next(error);
   }
@@ -303,7 +360,11 @@ export const getPublicOrder = async (
         status: order.status,
         rejectionReason: order.rejectionReason,
         cancellationReason: order.cancellationReason,
-        customer: order.customer,
+        customer: {
+          name: order.customer.name,
+          phone: maskPhoneNumber(order.customer.phone),
+          specialInstructions: order.customer.specialInstructions
+        },
         items: order.items,
         pricing: order.pricing,
         scheduling: order.scheduling,

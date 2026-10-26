@@ -11,6 +11,26 @@ export function generateOrderReference(): string {
   return `ORD-${year}${month}${day}-${randomSuffix}`;
 }
 
+export function maskPhoneNumber(phone: string): string {
+  if (!phone) return '****';
+  const trimmed = phone.trim();
+  if (/^\d{10}$/.test(trimmed)) {
+    return `${trimmed.slice(0, 2)}****${trimmed.slice(-4)}`;
+  }
+  if (trimmed.startsWith('+')) {
+    const countryCodeAndDigits = trimmed.replace(/[^\d+]/g, '');
+    if (countryCodeAndDigits.length >= 10) {
+      const countryCode = countryCodeAndDigits.slice(0, countryCodeAndDigits.length - 10);
+      const rest = countryCodeAndDigits.slice(-10);
+      return `${countryCode} ${rest.slice(0, 2)}****${rest.slice(-4)}`;
+    }
+  }
+  if (trimmed.length > 4) {
+    return `${trimmed.slice(0, 2)}****${trimmed.slice(-2)}`;
+  }
+  return '****';
+}
+
 export function buildWhatsAppLink(
   restaurantWhatsApp: string,
   restaurantName: string,

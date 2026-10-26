@@ -7,6 +7,7 @@ import { runSeed } from '../scripts/seed.js';
 import { MenuItem } from '../models/MenuItem.js';
 import { Restaurant } from '../models/Restaurant.js';
 import { Order } from '../models/Order.js';
+import { Payment } from '../models/Payment.js';
 
 let mongoServer: MongoMemoryServer;
 const app = createApp();
@@ -88,7 +89,17 @@ describe('Phase 3: Ordering Engine, Pricing & State Machine Tests', () => {
     expect(res.body.data.whatsAppLink).toContain('https://wa.me/');
     expect(res.body.data.whatsAppLink).toContain('ORD-');
 
+    // Verify correlation ID header is attached
+    expect(res.headers['x-request-id']).toBeDefined();
+
     createdOrderRef = res.body.data.orderReference;
+
+    // Verify Payment document was created in the separate Payment collection
+    const payment = await Payment.findOne({ orderReference: createdOrderRef });
+    expect(payment).toBeDefined();
+    expect(payment?.amount).toBe(326);
+    expect(payment?.status).toBe('PENDING');
+    expect(payment?.method).toBe('PAY_AT_RESTAURANT');
   });
 
   it('should preserve immutable item snapshots even if the menu price is later modified', async () => {
@@ -185,7 +196,7 @@ describe('Phase 3: Ordering Engine, Pricing & State Machine Tests', () => {
     expect(res.body.message).toContain('Minimum order amount');
   });
 
-  it('should allow customer to track order status by orderReference', async () => {
+  it('should allow customer to track order status by orderReference with masked phone number', async () => {
     const res = await request(app).get(
       `/api/v1/public/restaurants/highway-dhaba/orders/${createdOrderRef}`
     );
@@ -195,6 +206,8 @@ describe('Phase 3: Ordering Engine, Pricing & State Machine Tests', () => {
     expect(res.body.data.orderReference).toBe(createdOrderRef);
     expect(res.body.data.status).toBe('PENDING_CONFIRMATION');
     expect(res.body.data.customer.name).toBe('Vikram Batra');
+    // Ensure customer phone is masked for public tracking
+    expect(res.body.data.customer.phone).toBe('+91 98****3210');
     expect(res.body.data.whatsAppLink).toBeDefined();
   });
 
@@ -221,5 +234,47 @@ describe('Phase 3: Ordering Engine, Pricing & State Machine Tests', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
     expect(res.body.message).toContain('CANCELLED');
+  });
+
+  it('should support Idempotency-Key to prevent duplicate order creation on network retries', async () => {
+    const arrivalTime = getValidArrivalTime(50);
+    const testIdempotencyKey = 'idemp-test-uuid-9999';
+
+    const orderPayload = {
+      customer: {
+        name: 'Idempotent Customer',
+        phone: '+919999888877'
+      },
+      items: [
+        { menuItemId: dalMakhaniId, quantity: 1 }
+      ],
+      expectedArrivalTime: arrivalTime,
+      paymentMethod: 'PAY_AT_RESTAURANT'
+    };
+
+    // First attempt
+    const res1 = await request(app)
+      .post('/api/v1/public/restaurants/highway-dhaba/orders')
+      .set('Idempotency-Key', testIdempotencyKey)
+      .send(orderPayload);
+
+    expect(res1.status).toBe(201);
+    expect(res1.body.success).toBe(true);
+    const firstOrderRef = res1.body.data.orderReference;
+
+    // Second attempt with identical idempotency key
+    const res2 = await request(app)
+      .post('/api/v1/public/restaurants/highway-dhaba/orders')
+      .set('Idempotency-Key', testIdempotencyKey)
+      .send(orderPayload);
+
+    expect(res2.status).toBe(201);
+    expect(res2.body.success).toBe(true);
+    // Must return identical cached order reference without creating a second record
+    expect(res2.body.data.orderReference).toBe(firstOrderRef);
+
+    // Verify only 1 order exists for this phone number
+    const matchingOrders = await Order.find({ 'customer.phone': '+919999888877' });
+    expect(matchingOrders.length).toBe(1);
   });
 });

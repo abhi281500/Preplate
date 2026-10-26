@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { correlationIdMiddleware } from './middleware/requestId.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import restaurantRoutes from './modules/restaurant/restaurant.routes.js';
 import menuRoutes from './modules/menu/menu.routes.js';
@@ -18,6 +19,9 @@ import superRoutes from './modules/super/super.routes.js';
 
 export const createApp = (customRoutes?: { path: string; router: express.Router }[]) => {
   const app = express();
+
+  // Attach correlation ID to all incoming requests
+  app.use(correlationIdMiddleware);
 
   // Security headers
   app.use(helmet());
@@ -44,6 +48,7 @@ export const createApp = (customRoutes?: { path: string; router: express.Router 
     res.status(200).json({
       status: 'ok',
       service: 'Preplate API',
+      requestId: req.id,
       timestamp: new Date().toISOString(),
       environment: env.NODE_ENV
     });
