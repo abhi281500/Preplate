@@ -110,24 +110,30 @@ export const LandingPage: React.FC = () => {
         <section className="bg-stone-100 py-16 border-t border-b border-stone-200">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-10">
-              <h2 className="text-2xl sm:text-3xl font-bold text-stone-900">Experience Live Seeded Restaurants</h2>
-              <p className="mt-2 text-stone-600">Test the guest ordering flow directly with realistic menus.</p>
+              <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 uppercase tracking-wider mb-2">
+                Simulated Sandbox
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-bold text-stone-900">Explore Demo Restaurant Environments</h2>
+              <p className="mt-2 text-stone-600">Test the pre-arrival guest ordering flow directly with sample menus in safe practice environments.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-stone-200 flex flex-col justify-between">
+              <div className="bg-white p-6 rounded-2xl border border-stone-200 flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-extrabold px-3 py-0.5 rounded-bl-lg uppercase tracking-wider">
+                  Demo
+                </div>
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                      Highway Segment
+                      Highway Dhaba
                     </span>
-                    <span className="text-xs text-stone-500">Slug: highway-dhaba</span>
+                    <span className="text-xs text-stone-500 mr-12">Slug: highway-dhaba</span>
                   </div>
                   <h3 className="text-xl font-bold text-stone-900 mt-3">Highway Dhaba Express</h3>
                   <p className="text-sm text-stone-600 mt-1">Authentic Punjabi cuisine on the Delhi-Jaipur highway.</p>
                   <div className="mt-4 flex items-center text-xs text-stone-500 space-x-4">
                     <span className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-1" /> 20m Prep Buffer</span>
-                    <span className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-1" /> UPI & Counter Pay</span>
+                    <span className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-1" /> 25% Advance + Counter</span>
                   </div>
                 </div>
                 <div className="mt-6 pt-4 border-t border-stone-100 flex items-center justify-between">
@@ -135,24 +141,27 @@ export const LandingPage: React.FC = () => {
                     to="/r/highway-dhaba"
                     className="text-sm font-bold text-brand-600 hover:text-brand-700 flex items-center"
                   >
-                    Open Menu Portal <ArrowRight className="w-4 h-4 ml-1" />
+                    Open Demo Menu <ArrowRight className="w-4 h-4 ml-1" />
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl border border-stone-200 flex flex-col justify-between">
+              <div className="bg-white p-6 rounded-2xl border border-stone-200 flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-extrabold px-3 py-0.5 rounded-bl-lg uppercase tracking-wider">
+                  Demo
+                </div>
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">
-                      Urban Cafe Segment
+                      Urban Cafe
                     </span>
-                    <span className="text-xs text-stone-500">Slug: urban-spice</span>
+                    <span className="text-xs text-stone-500 mr-12">Slug: urban-spice</span>
                   </div>
                   <h3 className="text-xl font-bold text-stone-900 mt-3">Urban Spice Cafe</h3>
                   <p className="text-sm text-stone-600 mt-1">Artisanal coffees and healthy lunch bowls in Cyber Hub.</p>
                   <div className="mt-4 flex items-center text-xs text-stone-500 space-x-4">
                     <span className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-1" /> 15m Prep Buffer</span>
-                    <span className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-1" /> Quick Pickup</span>
+                    <span className="flex items-center"><CheckCircle2 className="w-4 h-4 text-emerald-500 mr-1" /> Quick Pre-Order</span>
                   </div>
                 </div>
                 <div className="mt-6 pt-4 border-t border-stone-100 flex items-center justify-between">
@@ -160,7 +169,7 @@ export const LandingPage: React.FC = () => {
                     to="/r/urban-spice"
                     className="text-sm font-bold text-brand-600 hover:text-brand-700 flex items-center"
                   >
-                    Open Menu Portal <ArrowRight className="w-4 h-4 ml-1" />
+                    Open Demo Menu <ArrowRight className="w-4 h-4 ml-1" />
                   </Link>
                 </div>
               </div>
@@ -172,10 +181,13 @@ export const LandingPage: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-stone-200 bg-white py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 space-y-4 sm:space-y-0">
-          <p>© {new Date().getFullYear()} Preplate SaaS. All rights reserved.</p>
-          <div className="flex items-center space-x-6">
-            <span>Production-Oriented Multi-Tenant SaaS</span>
-            <Link to="/login" className="hover:text-stone-900">Admin Login</Link>
+          <p>© {new Date().getFullYear()} Preplate SaaS. Multi-tenant restaurant pre-arrival coordination platform.</p>
+          <div className="flex flex-wrap items-center justify-center gap-6">
+            <span className="text-stone-400">100% Refund on Restaurant Rejection</span>
+            <span className="text-stone-300">|</span>
+            <Link to="/login" className="hover:text-stone-900 font-medium">Restaurant Portal</Link>
+            <span className="text-stone-300">|</span>
+            <Link to="/register" className="hover:text-stone-900 font-medium">Onboard Restaurant</Link>
           </div>
         </div>
       </footer>

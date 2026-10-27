@@ -7,6 +7,22 @@ export const loginSchema = z.object({
   })
 });
 
+export const sendOtpSchema = z.object({
+  body: z.object({
+    phone: z.string().min(8, 'Phone number must be at least 8 digits').trim(),
+    purpose: z.enum(['RESTAURANT_REGISTRATION', 'CUSTOMER_CHECKOUT'])
+  })
+});
+
+export const verifyOtpSchema = z.object({
+  body: z.object({
+    challengeId: z.string().uuid('Invalid challenge ID format'),
+    phone: z.string().min(8, 'Phone number must be at least 8 digits').trim(),
+    code: z.string().length(6, 'Verification code must be exactly 6 digits').regex(/^\d{6}$/, 'Code must be numeric'),
+    purpose: z.enum(['RESTAURANT_REGISTRATION', 'CUSTOMER_CHECKOUT'])
+  })
+});
+
 export const registerRestaurantSchema = z.object({
   body: z.object({
     restaurantName: z.string().min(2, 'Restaurant name must be at least 2 characters').trim(),
@@ -21,6 +37,7 @@ export const registerRestaurantSchema = z.object({
     whatsappNumber: z.string().min(8, 'WhatsApp number must be at least 8 digits').trim(),
     ownerName: z.string().min(2, 'Owner name must be at least 2 characters').trim(),
     email: z.string().email('Invalid email address').toLowerCase().trim(),
-    password: z.string().min(8, 'Password must be at least 8 characters with at least one number and letter')
+    password: z.string().min(8, 'Password must be at least 8 characters with at least one number and letter'),
+    verificationToken: z.string().optional()
   })
 });

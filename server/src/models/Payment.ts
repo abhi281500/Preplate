@@ -1,7 +1,15 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export type PaymentMethod = 'PAY_AT_RESTAURANT' | 'UPI_ON_ARRIVAL' | 'RAZORPAY_ONLINE';
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+export type PaymentStatus =
+  | 'PENDING'
+  | 'AUTHORIZED'
+  | 'PAID'
+  | 'CAPTURED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'REFUND_PENDING'
+  | 'REFUNDED';
 
 export interface IPaymentAttempt {
   timestamp: Date;
@@ -64,7 +72,7 @@ const PaymentSchema = new Schema<IPayment>(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'],
+      enum: ['PENDING', 'AUTHORIZED', 'PAID', 'CAPTURED', 'COMPLETED', 'FAILED', 'REFUND_PENDING', 'REFUNDED'],
       default: 'PENDING',
       required: true,
       index: true

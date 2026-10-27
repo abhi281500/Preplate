@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Utensils, Store, Phone, MessageSquare, Mail, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
+import { Utensils, Store, Phone, MessageSquare, Mail, Lock, User, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import api from '../../shared/api';
 import { useAuth } from '../../shared/AuthContext';
 
@@ -15,11 +15,71 @@ export const RegisterRestaurantPage: React.FC = () => {
     whatsappNumber: '',
     ownerName: '',
     email: '',
-    password: ''
+    password: '',
+    verificationToken: ''
   });
+
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [otpChallengeId, setOtpChallengeId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [otpNotice, setOtpNotice] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleSendOtp = async () => {
+    if (!formData.contactPhone.trim() || formData.contactPhone.trim().length < 8) {
+      setError('Please enter a valid contact phone before requesting verification code.');
+      return;
+    }
+    setError(null);
+    setIsSendingOtp(true);
+    setOtpNotice(null);
+    try {
+      const res = await api.post('/auth/otp/send', {
+        phone: formData.contactPhone.trim(),
+        purpose: 'RESTAURANT_REGISTRATION'
+      });
+      setOtpChallengeId(res.data.data.challengeId);
+      setIsOtpSent(true);
+      if (res.data.data.testCode) {
+        setOtpNotice(`Code sent! (Test Sandbox Code: ${res.data.data.testCode})`);
+      } else {
+        setOtpNotice('Verification code sent to your mobile.');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to dispatch verification code.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpChallengeId || otpCode.length !== 6) {
+      setError('Please enter the 6-digit verification code.');
+      return;
+    }
+    setError(null);
+    setIsVerifyingOtp(true);
+    try {
+      const res = await api.post('/auth/otp/verify', {
+        challengeId: otpChallengeId,
+        phone: formData.contactPhone.trim(),
+        code: otpCode.trim(),
+        purpose: 'RESTAURANT_REGISTRATION'
+      });
+      setFormData((prev) => ({ ...prev, verificationToken: res.data.data.verificationToken }));
+      setIsPhoneVerified(true);
+      setOtpNotice('✓ Phone number verified successfully');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Invalid or expired verification code.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
   const handleNameChange = (name: string) => {
     const generatedSlug = name
@@ -122,20 +182,69 @@ export const RegisterRestaurantPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">Contact Phone</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">Contact Phone</label>
+                  {isPhoneVerified && (
+                    <span className="text-[10px] font-bold text-emerald-700 flex items-center">
+                      <ShieldCheck className="w-3 h-3 mr-0.5" /> Verified
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 relative rounded-md shadow-sm flex items-center">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
                     <Phone className="w-4 h-4" />
                   </div>
                   <input
                     type="tel"
                     required
+                    disabled={isPhoneVerified}
                     value={formData.contactPhone}
-                    onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                    className="block w-full pl-9 pr-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-brand-500 focus:border-brand-500"
+                    onChange={(e) => {
+                      setFormData({ ...formData, contactPhone: e.target.value, verificationToken: '' });
+                      setIsPhoneVerified(false);
+                      setIsOtpSent(false);
+                    }}
+                    className="block w-full pl-9 pr-20 py-2 border border-stone-300 rounded-lg text-sm focus:ring-brand-500 focus:border-brand-500 disabled:bg-stone-100"
                     placeholder="+919876543210"
                   />
+                  {!isPhoneVerified && (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={isSendingOtp || formData.contactPhone.length < 8}
+                      className="absolute right-1 px-2.5 py-1 text-xs font-bold bg-brand-50 text-brand-700 hover:bg-brand-100 rounded disabled:opacity-40 transition"
+                    >
+                      {isSendingOtp ? 'Sending...' : isOtpSent ? 'Resend' : 'Verify'}
+                    </button>
+                  )}
                 </div>
+
+                {isOtpSent && !isPhoneVerified && (
+                  <div className="mt-2 p-2.5 bg-stone-100 rounded-lg border border-stone-200 text-xs space-y-1.5">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-stone-600">Enter 6-digit OTP:</span>
+                      {otpNotice && <span className="text-brand-600 font-bold">{otpNotice}</span>}
+                    </div>
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                        className="w-28 px-2 py-1 text-center font-bold tracking-widest border border-stone-300 rounded bg-white"
+                        placeholder="123456"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyOtp}
+                        disabled={isVerifyingOtp || otpCode.length !== 6}
+                        className="px-3 py-1 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded disabled:opacity-50"
+                      >
+                        {isVerifyingOtp ? '...' : 'Confirm'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

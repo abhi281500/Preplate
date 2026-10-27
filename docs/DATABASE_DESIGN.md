@@ -135,7 +135,7 @@ Customer pre-arrival orders containing immutable line-item snapshots and pricing
 | `tenantId` | String | Required, Indexed | Restaurant tenant owner |
 | `customer` | Subdocument | Required | `name`, `phone`, `specialInstructions` |
 | `items` | Array | Required | Line items with `nameSnapshot`, `priceSnapshot`, `subtotal` |
-| `pricing` | Subdocument | Required | `subtotal`, `taxAmount` (5% GST), `totalAmount` |
+| `pricing` | Subdocument | Required | `subtotal`, `taxAmount` (5% GST), `totalAmount`, `advancePercent` (25%), `requiredAdvanceAmount`, `capturedAdvanceAmount`, `remainingBalanceAmount` |
 | `scheduling` | Subdocument | Required | `expectedArrivalTime`, `acceptedAt`, `estimatedReadyTime`, `servedAt` |
 | `status` | Enum | See State Machine Below | Progressive order fulfillment status |
 | `rejectionReason` | String | Optional | Specified when restaurant declines order |
@@ -161,7 +161,7 @@ Maintains distinct transaction logs, settlement status, and cashier attempt hist
 | `amount` | Number | Required, Min: 0 | Total payable transaction amount |
 | `currency` | String | Default: 'INR' | Three-letter currency code |
 | `method` | Enum | `PAY_AT_RESTAURANT`, `UPI_ON_ARRIVAL`, `RAZORPAY_ONLINE` | Settlement method |
-| `status` | Enum | `PENDING`, `COMPLETED`, `FAILED`, `REFUNDED` | Transaction lifecycle status |
+| `status` | Enum | `PENDING`, `AUTHORIZED`, `PAID`, `CAPTURED`, `COMPLETED`, `FAILED`, `REFUND_PENDING`, `REFUNDED` | Transaction lifecycle status |
 | `provider` | String | Default: 'MANUAL_CASHIER' | Payment gateway or cashier channel |
 | `providerReference`| String | Optional | External transaction or UPI reference |
 | `idempotencyKey` | String | Optional | Linked order idempotency identifier |
@@ -175,7 +175,30 @@ Maintains distinct transaction logs, settlement status, and cashier attempt hist
 
 ---
 
-### 3.7. `idempotency_keys` Collection
+### 3.7. `otp_challenges` Collection
+Stores keyed HMAC hashes of verification challenges for owner registration and customer checkout.
+
+| Field Name | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `_id` | ObjectId | Auto-generated PK | Identifier |
+| `challengeId` | String | Required, Unique, Indexed | Challenge UUID |
+| `phone` | String | Required, Indexed | Normalized recipient telephone number |
+| `hmacHash` | String | Required | HMAC-SHA256 hash of 6-digit code |
+| `purpose` | Enum | `RESTAURANT_REGISTRATION`, `CUSTOMER_CHECKOUT` | Specific verification domain |
+| `attempts` | Number | Default: 0, Max: 5 | Counter for failed verification attempts |
+| `isConsumed` | Boolean | Default: false | Single-use guard flag |
+| `consumedAt` | Date | Optional | Verification timestamp |
+| `resendAfter` | Date | Required | Timestamp enforcing 60s cooldown |
+| `expiresAt` | Date | TTL Index (300s) | Expiration timestamp (5 minutes) |
+
+**Indexes:**
+- `{ challengeId: 1 }` (Unique)
+- `{ phone: 1, purpose: 1, isConsumed: 1 }`
+- `{ expiresAt: 1 }` (TTL: 0)
+
+---
+
+### 3.8. `idempotency_keys` Collection
 Prevents double order submissions caused by network retries.
 
 | Field Name | Type | Constraints | Description |

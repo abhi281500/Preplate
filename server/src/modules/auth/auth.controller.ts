@@ -7,6 +7,7 @@ import { User } from '../../models/User.js';
 import { Restaurant } from '../../models/Restaurant.js';
 import { AuditLog } from '../../models/AuditLog.js';
 import { AuthenticatedRequest } from '../../types/index.js';
+import { OtpService } from '../../services/otpService.js';
 
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -86,7 +87,23 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
 
 export const registerRestaurant = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { restaurantName, slug, contactPhone, whatsappNumber, ownerName, email, password } = req.body;
+    const { restaurantName, slug, contactPhone, whatsappNumber, ownerName, email, password, verificationToken } = req.body;
+
+    // Verify phone verification token if provided
+    if (verificationToken) {
+      const isVerified = OtpService.verifyProofToken(
+        verificationToken,
+        contactPhone,
+        'RESTAURANT_REGISTRATION'
+      );
+      if (!isVerified) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired phone verification token for this restaurant contact phone.'
+        });
+        return;
+      }
+    }
 
     // Check if slug or email is already taken
     const [existingSlug, existingEmail] = await Promise.all([
@@ -204,6 +221,54 @@ export const getMe = async (req: AuthenticatedRequest, res: Response, next: Next
       data: {
         user,
         restaurant
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const sendOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { phone, purpose } = req.body;
+    const { result, rawCodeForTesting } = await OtpService.createChallenge(phone, purpose);
+
+    if (rawCodeForTesting) {
+      res.setHeader('x-test-otp', rawCodeForTesting);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Verification code sent to ${result.phone}`,
+      data: {
+        ...result,
+        testCode: env.NODE_ENV === 'test' ? rawCodeForTesting : undefined
+      }
+    });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
+export const verifyOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { challengeId, phone, code, purpose } = req.body;
+    const result = await OtpService.verifyChallenge(challengeId, phone, code, purpose);
+
+    if (!result.success) {
+      res.status(400).json({ success: false, message: result.message });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: {
+        verificationToken: result.verificationToken
       }
     });
   } catch (error) {

@@ -56,8 +56,73 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'PAY_AT_RESTAURANT' | 'UPI_ON_ARRIVAL'>('PAY_AT_RESTAURANT');
 
+  // Customer Phone OTP State
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [otpChallengeId, setOtpChallengeId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [otpNotice, setOtpNotice] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const advancePercent = 25;
+  const requiredAdvance = Math.ceil((totalAmount * advancePercent) / 100);
+  const remainingBalance = totalAmount - requiredAdvance;
+
+  const handleSendOtp = async () => {
+    if (!customerPhone.trim() || customerPhone.trim().length < 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile number before requesting verification.');
+      return;
+    }
+    setErrorMessage(null);
+    setIsSendingOtp(true);
+    setOtpNotice(null);
+    try {
+      const res = await api.post('/auth/otp/send', {
+        phone: customerPhone.trim(),
+        purpose: 'CUSTOMER_CHECKOUT'
+      });
+      setOtpChallengeId(res.data.data.challengeId);
+      setIsOtpSent(true);
+      if (res.data.data.testCode) {
+        setOtpNotice(`Code sent! (Test Sandbox Code: ${res.data.data.testCode})`);
+      } else {
+        setOtpNotice('Verification code sent to your phone.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.message || 'Failed to send verification code.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpChallengeId || otpCode.length !== 6) {
+      setErrorMessage('Please enter the 6-digit code received on your phone.');
+      return;
+    }
+    setErrorMessage(null);
+    setIsVerifyingOtp(true);
+    try {
+      const res = await api.post('/auth/otp/verify', {
+        challengeId: otpChallengeId,
+        phone: customerPhone.trim(),
+        code: otpCode.trim(),
+        purpose: 'CUSTOMER_CHECKOUT'
+      });
+      setVerificationToken(res.data.data.verificationToken);
+      setIsPhoneVerified(true);
+      setOtpNotice('✓ Phone verified successfully');
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.message || 'Invalid or expired verification code.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
   if (!isDrawerOpen) return null;
 
@@ -102,7 +167,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         customer: {
           name: customerName.trim(),
           phone: customerPhone.trim(),
-          specialInstructions: specialInstructions.trim() || undefined
+          specialInstructions: specialInstructions.trim() || undefined,
+          verificationToken: verificationToken || undefined
         },
         items: items.map((i) => ({ menuItemId: i.id, quantity: i.quantity })),
         expectedArrivalTime: computedArrivalDate.toISOString(),
@@ -294,18 +360,68 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     />
                   </div>
 
-                  <div className="relative rounded-xl shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
-                      <Phone className="w-4 h-4" />
+                  <div className="space-y-1.5">
+                    <div className="relative rounded-xl shadow-sm flex items-center">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
+                        <Phone className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="tel"
+                        required
+                        disabled={isPhoneVerified}
+                        value={customerPhone}
+                        onChange={(e) => {
+                          setCustomerPhone(e.target.value);
+                          setIsPhoneVerified(false);
+                          setIsOtpSent(false);
+                          setVerificationToken(null);
+                        }}
+                        placeholder="10-digit Mobile Number"
+                        className="block w-full pl-9 pr-24 py-2 border border-stone-300 rounded-xl text-xs focus:ring-brand-500 focus:border-brand-500 disabled:bg-stone-100 disabled:text-stone-500"
+                      />
+                      {!isPhoneVerified ? (
+                        <button
+                          type="button"
+                          onClick={handleSendOtp}
+                          disabled={isSendingOtp || customerPhone.length < 10}
+                          className="absolute right-1.5 px-2.5 py-1 text-[11px] font-bold bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg disabled:opacity-40 transition"
+                        >
+                          {isSendingOtp ? 'Sending...' : isOtpSent ? 'Resend' : 'Verify'}
+                        </button>
+                      ) : (
+                        <span className="absolute right-2 px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded flex items-center">
+                          <ShieldCheck className="w-3 h-3 mr-1" /> Verified
+                        </span>
+                      )}
                     </div>
-                    <input
-                      type="tel"
-                      required
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="10-digit Mobile Number"
-                      className="block w-full pl-9 pr-3 py-2 border border-stone-300 rounded-xl text-xs focus:ring-brand-500 focus:border-brand-500"
-                    />
+
+                    {/* Inline OTP Challenge Entry */}
+                    {isOtpSent && !isPhoneVerified && (
+                      <div className="p-3 bg-stone-100 rounded-xl space-y-2 border border-stone-200">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-stone-700">Enter 6-digit verification code:</span>
+                          {otpNotice && <span className="text-brand-600 font-bold">{otpNotice}</span>}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="6-digit OTP"
+                            className="w-32 px-3 py-1.5 text-center text-sm font-bold tracking-widest border border-stone-300 rounded-lg focus:ring-brand-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyOtp}
+                            disabled={isVerifyingOtp || otpCode.length !== 6}
+                            className="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition"
+                          >
+                            {isVerifyingOtp ? 'Checking...' : 'Confirm'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="relative rounded-xl shadow-sm">
@@ -329,8 +445,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center space-x-3">
                   <CreditCard className="w-4 h-4 text-brand-600 flex-shrink-0" />
                   <div className="text-xs">
-                    <p className="font-bold text-stone-900">Pay at Restaurant Counter</p>
-                    <p className="text-stone-500 text-[11px]">Pay via UPI QR or Cash when you arrive.</p>
+                    <p className="font-bold text-stone-900">25% Advance Confirmation</p>
+                    <p className="text-stone-500 text-[11px]">Pay 25% to reserve kitchen prep; balance 75% settled on arrival.</p>
                   </div>
                 </div>
               </div>
@@ -346,14 +462,29 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <span className="font-bold text-stone-900">₹{taxAmount}</span>
                 </div>
                 <div className="pt-2 border-t border-stone-200 flex justify-between text-sm font-extrabold text-stone-900">
-                  <span>Total Payable</span>
-                  <span className="text-brand-600 text-base">₹{totalAmount}</span>
+                  <span>Total Order Value</span>
+                  <span className="text-stone-900 text-base">₹{totalAmount}</span>
+                </div>
+                <div className="pt-2 border-t border-dashed border-stone-300 space-y-1">
+                  <div className="flex justify-between text-brand-700 font-bold">
+                    <span>Required Advance (25%)</span>
+                    <span>₹{requiredAdvance}</span>
+                  </div>
+                  <div className="flex justify-between text-stone-500 text-[11px]">
+                    <span>Remaining Balance on Arrival</span>
+                    <span>₹{remainingBalance}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Operational Notice */}
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-                <strong>Notice:</strong> Submitting sends an order request. The restaurant reviews availability and confirms with an estimated preparation time. Food readiness coordinates with your arrival.
+              {/* Operational & Refund Protection Notice */}
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed space-y-1">
+                <p>
+                  <strong>100% Refund Guarantee:</strong> If the restaurant is unable to accept your pre-arrival order, your 25% advance deposit will be immediately refunded in full.
+                </p>
+                <p className="text-amber-800/80">
+                  Once accepted, kitchen coordinates fresh preparation for your expected arrival at {formattedArrivalTime}.
+                </p>
               </div>
             </>
           )}
@@ -375,7 +506,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </>
               ) : (
                 <>
-                  <span>Submit Request (₹{totalAmount})</span>
+                  <span>Submit Order (₹{requiredAdvance} Advance)</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

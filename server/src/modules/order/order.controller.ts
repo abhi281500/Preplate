@@ -9,6 +9,7 @@ import { IdempotencyKey } from '../../models/IdempotencyKey.js';
 import { env } from '../../config/env.js';
 import { generateOrderReference, buildWhatsAppLink, maskPhoneNumber } from './order.utils.js';
 import { NotificationService } from '../../services/notificationService.js';
+import { OtpService } from '../../services/otpService.js';
 
 export const createPublicOrder = async (
   req: Request,
@@ -48,6 +49,23 @@ export const createPublicOrder = async (
       });
       if (cached) {
         res.status(cached.statusCode).json(cached.responseBody);
+        return;
+      }
+    }
+
+    // Verify phone OTP verification token if supplied
+    const verificationToken = customer.verificationToken || (req.headers['x-verification-token'] as string | undefined);
+    if (verificationToken) {
+      const isVerified = OtpService.verifyProofToken(
+        verificationToken,
+        customer.phone,
+        'CUSTOMER_CHECKOUT'
+      );
+      if (!isVerified) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid or expired phone verification token for customer checkout.'
+        });
         return;
       }
     }
@@ -183,6 +201,15 @@ export const createPublicOrder = async (
     const taxAmount = Math.round(subtotal * 0.05);
     const totalAmount = subtotal + taxAmount;
 
+    // Minimum 25% Advance Calculation (Authoritative Server-Side)
+    const advancePercent = restaurant.settings?.advancePercent ?? 25;
+    const requiredAdvanceAmount = Math.ceil((totalAmount * advancePercent) / 100);
+    const isOnlineAdvance = paymentMethod === 'RAZORPAY_ONLINE';
+    const capturedAdvanceAmount = isOnlineAdvance ? requiredAdvanceAmount : 0;
+    const remainingBalanceAmount = isOnlineAdvance
+      ? totalAmount - capturedAdvanceAmount
+      : totalAmount;
+
     // 7. Generate Unique Order Reference
     let orderReference = generateOrderReference();
     // Safety check for reference collision
@@ -203,7 +230,11 @@ export const createPublicOrder = async (
       pricing: {
         subtotal,
         taxAmount,
-        totalAmount
+        totalAmount,
+        advancePercent,
+        requiredAdvanceAmount,
+        capturedAdvanceAmount,
+        remainingBalanceAmount
       },
       scheduling: {
         expectedArrivalTime: arrivalDate
@@ -211,7 +242,7 @@ export const createPublicOrder = async (
       status: 'PENDING_CONFIRMATION',
       payment: {
         method: paymentMethod || 'PAY_AT_RESTAURANT',
-        status: 'PENDING'
+        status: isOnlineAdvance ? 'CAPTURED' : 'PENDING'
       }
     });
 
@@ -236,14 +267,14 @@ export const createPublicOrder = async (
       amount: order.pricing.totalAmount,
       currency: 'INR',
       method: paymentMethod || 'PAY_AT_RESTAURANT',
-      status: 'PENDING',
-      provider: paymentMethod === 'RAZORPAY_ONLINE' ? 'RAZORPAY' : 'MANUAL_CASHIER',
+      status: isOnlineAdvance ? 'CAPTURED' : 'PENDING',
+      provider: isOnlineAdvance ? 'RAZORPAY' : 'MANUAL_CASHIER',
       idempotencyKey: idempotencyKey || undefined,
       attempts: [
         {
           timestamp: new Date(),
-          status: 'PENDING',
-          providerResponse: 'Awaiting customer arrival or cashier settlement'
+          status: isOnlineAdvance ? 'CAPTURED' : 'PENDING',
+          providerResponse: `Required advance: ₹${requiredAdvanceAmount} (${advancePercent}%). Remaining balance: ₹${remainingBalanceAmount} due at counter.`
         }
       ]
     });
@@ -423,6 +454,12 @@ export const cancelPublicOrder = async (
     order.status = 'CANCELLED';
     order.cancellationReason = reason || 'Cancelled by customer before restaurant acceptance';
     await order.save();
+
+    // If advance payment was captured, mark payment as REFUNDED
+    await Payment.updateOne(
+      { tenantId: restaurant.tenantId, orderId: order._id },
+      { $set: { status: 'REFUNDED' } }
+    );
 
     // Replenish inventory for tracked items upon cancellation
     for (const itemSnapshot of order.items) {

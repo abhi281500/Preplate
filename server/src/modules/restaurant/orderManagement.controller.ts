@@ -9,11 +9,13 @@ import { NotificationService } from '../../services/notificationService.js';
 
 // Permitted progressive status transitions
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PENDING_PAYMENT: ['PENDING_CONFIRMATION', 'CANCELLED'],
   PENDING_CONFIRMATION: ['ACCEPTED', 'REJECTED'],
   ACCEPTED: ['PREPARING'],
   PREPARING: ['READY'],
-  READY: ['SERVED'],
-  SERVED: [],
+  READY: ['SERVED', 'COMPLETED'],
+  SERVED: ['COMPLETED'],
+  COMPLETED: [],
   REJECTED: [],
   CANCELLED: [],
   EXPIRED: []
@@ -208,11 +210,12 @@ export const rejectOrder = async (
     order.rejectionReason = reason;
     await order.save();
 
-    // Mark payment as FAILED
-    await Payment.updateOne(
-      { tenantId: req.tenantId, orderId: order._id },
-      { status: 'FAILED' }
-    );
+    // If advance payment was captured, refund it upon restaurant rejection; otherwise mark failed
+    const existingPayment = await Payment.findOne({ tenantId: req.tenantId, orderId: order._id });
+    if (existingPayment) {
+      existingPayment.status = existingPayment.status === 'CAPTURED' ? 'REFUNDED' : 'FAILED';
+      await existingPayment.save();
+    }
 
     // Replenish inventory for tracked items upon rejection
     for (const itemSnapshot of order.items) {
@@ -296,15 +299,17 @@ export const updateOrderStatus = async (
       order.scheduling.actualReadyTime = new Date();
     } else if (nextStatus === 'SERVED') {
       order.scheduling.servedAt = new Date();
-      // If paying at restaurant, mark payment status as PAID upon food handover
-      if (order.payment.method === 'PAY_AT_RESTAURANT' || order.payment.method === 'UPI_ON_ARRIVAL') {
-        order.payment.status = 'PAID';
-        order.payment.paidAt = new Date();
-        await Payment.updateOne(
-          { tenantId: req.tenantId, orderId: order._id },
-          { status: 'COMPLETED', completedAt: new Date() }
-        );
+      // Upon handover, mark full order payment as completed and balance settled
+      order.payment.status = 'PAID';
+      order.payment.paidAt = new Date();
+      if (order.pricing) {
+        order.pricing.capturedAdvanceAmount = order.pricing.totalAmount;
+        order.pricing.remainingBalanceAmount = 0;
       }
+      await Payment.updateOne(
+        { tenantId: req.tenantId, orderId: order._id },
+        { status: 'COMPLETED', completedAt: new Date() }
+      );
     }
 
     await order.save();

@@ -1,76 +1,99 @@
-# Preplate — SaaS Production Audit & Architecture Baseline
+# Preplate — SaaS Production Audit & Baseline Gap Analysis
 
 **Audit Date:** October 2026  
-**Auditor:** Senior Software Architect, Security Engineer & SaaS Product Team  
-**Scope:** Entire Preplate Monorepo (`server`, `client`, `docs`)  
-**Status:** ALL AUDITED P0/P1 RISKS RESOLVED & VERIFIED  
+**Auditor:** Senior Full-Stack Engineer, Security Architect & SaaS DevOps Team  
+**Scope:** Full Stack Monorepo (`/server`, `/client`, `/docs`, `/config`)  
+**Baseline Test Status:** 8 suites passed, 84 tests passed (0 failures)  
+**Baseline Build Status:** Server `tsc` passed, Client Vite build passed (0 errors)  
 
 ---
 
-## 1. Executive Summary
+## 1. Executive Summary & Audit Baseline
 
-Preplate is a multi-tenant SaaS platform built to coordinate pre-arrival food ordering, kitchen preparation schedules, and WhatsApp-assisted customer notifications for roadside restaurants, dhabas, and dine-in cafes. 
+Preplate is a multi-tenant SaaS platform coordinating pre-arrival food ordering, kitchen preparation buffers, advance payment capture, and notification coordination for roadside eateries, dine-in restaurants, and highway dhabas.
 
-This audit report documents the architectural baseline, identifies technical debt, security vectors, and contract mismatches across the repository, and verifies the hardening implementations applied to make Preplate commercially viable for real restaurant operators.
+This comprehensive audit establishes the technical baseline, records build and test metrics, catalogues external service dependencies, and categorizes newly identified functional gaps (such as dual-flow OTP verification, minimum 25% advance payment calculation, and guest cart persistence) into a prioritized engineering roadmap.
 
 ---
 
 ## 2. Technology Stack & Framework Inventory
 
-| Component | Technology | Version | Purpose & Architecture Role |
+| Component | Framework / Tool | Version | Architecture Role & Responsibilities |
 | :--- | :--- | :--- | :--- |
-| **Backend Framework** | Node.js / Express | Node 22.x / Express 4.21.2 | Modular TypeScript REST API with centralized error handling |
-| **Database & ODM** | MongoDB / Mongoose | MongoDB 7.0 / Mongoose 8.9.5 | Document database with tenant-scoped collections & compound indexes |
-| **Data Validation** | Zod | 3.24.1 | Strict runtime schema parsing for request params, queries, and bodies |
-| **Authentication** | JWT & Bcrypt | `jsonwebtoken` 9.0 / `bcryptjs` 2.4 | HMAC-SHA256 tokens (7-day expiry), 12-round salted password hashing |
-| **Frontend Framework** | React / Vite | React 18.3.1 / Vite 6.4.5 | TypeScript Single Page Application (SPA) with React Router v6 |
-| **Styling & UI** | Tailwind CSS / Lucide | Tailwind 3.4.1 / Lucide React 0.468 | Responsive mobile-first UI with dark/light kitchen display modes |
-| **Testing Engine** | Vitest / Supertest | Vitest 3.2.7 / Supertest 7.0.0 | In-memory integration testing via `mongodb-memory-server` 10.1 |
-| **Containerization** | Docker / Compose | Multi-stage Node 22 / Nginx 1.27 | Isolated containerized deployment with health checks |
+| **Backend API** | Node.js / Express | Node 22.x / Express 4.21.2 | Modular REST API with TypeScript, centralized error handling, request correlation |
+| **Database & ODM** | MongoDB / Mongoose | MongoDB 7.0 / Mongoose 8.9.5 | Multi-tenant compound-indexed collections partitioned by `tenantId` |
+| **Data Validation** | Zod | 3.24.1 | Strict runtime parsing and sanitization of request params, queries, and payloads |
+| **Authentication** | JWT & Bcrypt | `jsonwebtoken` 9.0 / `bcryptjs` 2.4 | HMAC-SHA256 tokens (7-day validity), 12-round salted password hashing |
+| **Frontend Web** | React / Vite | React 18.3.1 / Vite 6.4.5 | TypeScript Single Page Application (SPA), React Router v6, Tailwind CSS 3.4.1 |
+| **Testing Suite** | Vitest / Supertest | Vitest 3.2.7 / Supertest 7.0.0 | In-memory integration testing with `mongodb-memory-server` 10.1 |
+| **Containerization** | Docker / Compose | Node 22-alpine / Nginx 1.27 | Multi-stage production container images with healthchecks and SPA fallback |
 
 ---
 
-## 3. Findings & Vulnerability Matrix
+## 3. Audited Baseline Test & Build Verification
 
-| Priority | Issue Description | Risk Level | Original State | Resolution & Verification |
-| :--- | :--- | :--- | :--- | :--- |
-| **P0** | **Customer Phone Number Exposure in Public Order Tracking** | Critical (PII Leak) | Raw phone numbers were returned by `GET /api/v1/public/restaurants/:slug/orders/:orderReference`. Anyone with the tracking link could scrape customer phone numbers. | **Resolved:** Implemented `maskPhoneNumber()` in `order.utils.ts`. Phone numbers are masked (e.g. `+91 98****3210`) for public view. Verified via `orderEngine.test.ts`. |
-| **P0** | **Duplicate Order Placement on Network Retry (Missing Idempotency)** | High (Financial / Stock Double-Deduction) | Rapid client retries or flaky mobile network drops could submit multiple identical orders, duplicating charges and deducting kitchen inventory multiple times. | **Resolved:** Created `IdempotencyKey` collection with compound index `{ tenantId, key }` and 24-hour TTL. Handled `Idempotency-Key` header in order creation. Verified via automated test. |
-| **P1** | **Embedded Payment Subdocument Lacked Transaction History** | High (Financial Auditability) | Payment state was solely stored as an embedded subdocument within `Order`. No independent transaction logs, attempt histories, or cashier settlement records existed. | **Resolved:** Created standalone `Payment` collection with lifecycle states (`PENDING`, `COMPLETED`, `FAILED`, `REFUNDED`), attempt histories, and provider references. Linked bidirectionally. |
-| **P1** | **Missing End-to-End Request Correlation ID** | Medium (Observability / Debugging) | Requests across distributed client, reverse proxy, and API had no common tracing header, hindering audit trail tracking. | **Resolved:** Created `correlationIdMiddleware` assigning UUID `x-request-id` to all requests and responses, exposed in health check and error responses. |
-| **P1** | **Lack of Production Docker & Nginx SPA Configuration** | Medium (Deployment Blocker) | No production `Dockerfile` or `docker-compose.yml` existed, risking inconsistent environment deployments. | **Resolved:** Authored multi-stage production Dockerfiles for `server` and `client`, custom Nginx conf with SPA fallback, gzip, and security headers, and root `docker-compose.yml`. |
-| **P2** | **Stock Limit Race Conditions & Portion Controls** | Medium (Inventory Overbooking) | Menu items lacked granular daily portion limits or automatic 86-ing when stock reached zero. | **Resolved:** Added `trackInventory`, `availableQuantity`, `dailyStockLimit`, and `ordersCountToday` fields to `MenuItem`. Automatic stock decrement and auto-replenish on cancellation. |
-| **P2** | **WhatsApp Integration Link Fragility** | Medium (UX Failure) | WhatsApp links failed if customer phone or restaurant phone lacked proper sanitization or country code prefixes. | **Resolved:** Implemented strict regex cleaning (`replace(/[^0-9]/g, '')`), standard URL encoding, and triple fallback message builders. |
-| **P3** | **Missing Standardized Production Documentation** | Low (Operational Risk) | Documentation was fragmented across early draft files without exhaustive API reference, runbooks, or deployment guides. | **Resolved:** Authored comprehensive docs: `PRODUCTION_AUDIT.md`, `PRODUCTION_ROADMAP.md`, `DATABASE_DESIGN.md`, `API_REFERENCE.md`, `SECURITY.md`, `DEPLOYMENT.md`, `OPERATIONS_RUNBOOK.md`, `CHANGELOG.md`. |
+The baseline check was executed across the entire repository prior to new modifications:
 
----
+```
+Test Execution:
+- Test Files: 8 passed (8)
+- Test Cases: 84 passed (84)
+- Test Duration: 10.73s
+- Suites Verified:
+  1. authAndTenantIsolation.test.ts (9 tests)
+  2. endToEndLifecycle.test.ts (12 tests)
+  3. menuAndProfile.test.ts (17 tests)
+  4. orderEngine.test.ts (10 tests)
+  5. restaurantOperations.test.ts (9 tests)
+  6. superAdminManagement.test.ts (12 tests)
+  7. tenantEnforcement.test.ts (5 tests)
+  8. whatsappNotification.test.ts (10 tests)
 
-## 4. Multi-Tenant Isolation Audit
-
-1. **Tenant Derivation:**
-   - Authenticated operations strictly derive `tenantId` from verified JWT claims (`req.user.tenantId`).
-   - The platform never trusts client-supplied `tenantId` in request bodies or query parameters.
-2. **Platform vs Tenant Separation:**
-   - Platform Super Admins have `role: 'SUPER_ADMIN'` with `tenantId: null` and explicit platform permissions.
-   - Restaurant staff accounts (`RESTAURANT_OWNER`, `RESTAURANT_STAFF`, `KITCHEN_STAFF`) are strictly bound to their assigned tenant. Any attempt by a tenant user to access another tenant's menu, orders, or analytics triggers an HTTP 403 Forbidden and writes an immutable record to `AuditLog`.
-3. **Compound Database Indexes:**
-   - All tenant collections (`MenuItem`, `Order`, `Payment`, `Category`, `NotificationLog`, `AuditLog`, `IdempotencyKey`) enforce compound indexes prefixed with `tenantId: 1`.
+Build Execution:
+- Server TypeScript Compilation (`tsc`): 0 errors, output generated in server/dist/
+- Client Production Bundle (`tsc && vite build`): 0 errors, 1710 modules transformed, output in client/dist/
+```
 
 ---
 
-## 5. Test Suite & Quality Verification
+## 4. Comprehensive Vulnerability & Gap Matrix
 
-All automated tests run via Vitest in-memory MongoDB environment:
-
-- **Total Test Suites:** 8 passed (8)
-- **Total Tests:** 84 passed (84)
-- **Failures:** 0
-- **Build Status:** 
-  - `server`: TypeScript compilation `tsc` clean (0 errors)
-  - `client`: Vite bundle + TypeScript check clean (0 errors)
+| Priority | Dimension | Current State | Target Production Requirement | Risk / Impact |
+| :---: | :--- | :--- | :--- | :--- |
+| **P0** | **Authentication & Verification** | Restaurant registration and customer checkout accept unverified phone numbers. | Implement two independent OTP flows: (1) Owner Registration OTP, (2) Customer Checkout OTP, storing HMAC-hashed challenges with 5-min expiry and attempt throttling. | High: Fake reservations, unverified phone spoofing, abusive order requests. |
+| **P0** | **Payment & Financial Integrity** | Checkout defaults to full payment at restaurant with no mandatory deposit. | Enforce minimum 25% advance calculation server-side (`requiredAdvance = ceil(total * 0.25)`), independent payment state machine (`PENDING`, `AUTHORIZED`, `CAPTURED`, `REFUNDED`), and signed webhook verification. | High: Food wastage from no-show diners who abandon orders without financial commitment. |
+| **P1** | **Cart Persistence & Guest UX** | Cart items live solely in ephemeral React state (`useState`) and disappear on refresh. | Local storage persistence scoped to restaurant slug (`preplate_cart_${slug}`) plus backend cart revalidation before checkout. | Medium: Lost customer progress upon page refresh or accidental back navigation. |
+| **P1** | **Customer PII Exposure** | Historical tracking exposed customer phone numbers publicly. | **RESOLVED:** Mask customer phone (`+91 98****3210`) on public tracking endpoints via `maskPhoneNumber()`. | Closed PII leak. |
+| **P1** | **Duplicate Order Prevention** | Rapid mobile network retries could submit duplicate orders. | **RESOLVED:** Implemented `IdempotencyKey` collection with 24-hr TTL and `Idempotency-Key` header handling. | Closed duplication risk. |
+| **P1** | **Independent Payment Records** | Embedded subdocument lacked transaction history and cashier attempts. | **RESOLVED:** Standalone `Payment` collection tracking amounts, gateways, attempt logs, and settlement status. | Auditable financial history. |
+| **P2** | **Demo Environment Disclosure** | Demo restaurants (`highway-dhaba`, `urban-spice`) appear as live businesses. | Explicitly display "DEMO RESTAURANT - PRACTICE ENVIRONMENT" badges on storefront and landing pages. | Medium: Diner confusion attempting to order real food from sample accounts. |
+| **P2** | **Notification Reliability** | Click-to-Chat deep links are generated synchronously. | Maintain transactional `NotificationLog` trail with retryable job payloads and Meta Cloud API webhook ingestion readiness. | Low: Customer communication dropouts during traffic surges. |
+| **P3** | **Compliance & Documentation** | Terms of service, cancellation policy, and refund rules were not linked on checkout. | Add explicit terms modal and refund policy disclosure (mandatory 100% refund of 25% advance if restaurant declines order). | Low: Chargeback and customer dispute ambiguity. |
 
 ---
 
-## 6. Production Readiness Verdict
+## 5. External Provider Dependencies & Integration Boundaries
 
-Preplate satisfies all functional, architectural, and security requirements for customer pilot launch. All P0 and P1 vulnerabilities have been closed with automated regression test coverage.
+1. **SMS / OTP Delivery Gateway:**
+   - *Target Providers:* Fast2SMS (India DLT), Twilio, or MSG91.
+   - *Integration Boundary:* In local/staging environments (`NODE_ENV=development` or `test`), server outputs verification codes to server console and test response headers for automated testing without charging SMS credits. In production, requires `SMS_PROVIDER_API_KEY`.
+2. **Online Payment Gateway:**
+   - *Target Provider:* Razorpay (UPI, Credit/Debit cards, Netbanking).
+   - *Integration Boundary:* In test/staging, mock Razorpay order generation and webhook signature verification using test key/secret (`rzp_test_...`). In production, requires live merchant credentials and signed webhook endpoint (`/api/v1/webhook/razorpay`).
+3. **WhatsApp Messaging Gateway:**
+   - *Target Provider:* WhatsApp Business API (Meta Cloud API).
+   - *Integration Boundary:* Default zero-cost `CLICK_TO_CHAT` deep linking requires zero credentials. For automated background notifications, system supports Meta Cloud API via `WHATSAPP_ACCESS_TOKEN` and webhook handshake verification (`hub.challenge`).
+
+---
+
+## 6. Multi-Tenant Isolation & Security Assessment
+
+- **Zero-Trust Identity:** The backend never trusts client-supplied `tenantId` in request bodies. All database queries derive `tenantId` strictly from the cryptographically verified JWT token (`req.user.tenantId`).
+- **Database Partitioning:** Compound indexes `{ tenantId: 1, ... }` are enforced on `Restaurant`, `User`, `Category`, `MenuItem`, `Order`, `Payment`, `AuditLog`, and `NotificationLog`.
+- **Cross-Tenant Violation Trapping:** Attempting to query another restaurant's orders or revenue metrics returns HTTP 403 Forbidden and writes an immutable entry to `AuditLog`.
+
+---
+
+## 7. Audit Conclusion & Phase Transition
+
+The baseline foundation is clean, verified, and free of syntax, build, or test regressions. We now proceed to execute Phase 2 through Phase 8 of the Production Master Plan.

@@ -1,17 +1,26 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export type OrderStatus =
+  | 'PENDING_PAYMENT'
   | 'PENDING_CONFIRMATION'
   | 'ACCEPTED'
   | 'PREPARING'
   | 'READY'
   | 'SERVED'
+  | 'COMPLETED'
   | 'REJECTED'
   | 'CANCELLED'
   | 'EXPIRED';
 
-export type PaymentMethod = 'PAY_AT_RESTAURANT' | 'UPI_ON_ARRIVAL' | 'ONLINE';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'REFUNDED';
+export type PaymentMethod = 'PAY_AT_RESTAURANT' | 'UPI_ON_ARRIVAL' | 'ONLINE' | 'RAZORPAY_ONLINE';
+export type PaymentStatus =
+  | 'PENDING'
+  | 'AUTHORIZED'
+  | 'PAID'
+  | 'CAPTURED'
+  | 'FAILED'
+  | 'REFUND_PENDING'
+  | 'REFUNDED';
 
 export interface IOrderItemSnapshot {
   menuItemId: mongoose.Types.ObjectId;
@@ -31,6 +40,10 @@ export interface IOrderPricing {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  advancePercent?: number;
+  requiredAdvanceAmount?: number;
+  capturedAdvanceAmount?: number;
+  remainingBalanceAmount?: number;
 }
 
 export interface IOrderScheduling {
@@ -87,7 +100,11 @@ const OrderPricingSchema = new Schema<IOrderPricing>(
   {
     subtotal: { type: Number, required: true, min: 0 },
     taxAmount: { type: Number, default: 0, min: 0 },
-    totalAmount: { type: Number, required: true, min: 0 }
+    totalAmount: { type: Number, required: true, min: 0 },
+    advancePercent: { type: Number, default: 25, min: 0, max: 100 },
+    requiredAdvanceAmount: { type: Number, default: 0, min: 0 },
+    capturedAdvanceAmount: { type: Number, default: 0, min: 0 },
+    remainingBalanceAmount: { type: Number, default: 0, min: 0 }
   },
   { _id: false }
 );
@@ -107,12 +124,12 @@ const OrderPaymentSchema = new Schema<IOrderPayment>(
   {
     method: {
       type: String,
-      enum: ['PAY_AT_RESTAURANT', 'UPI_ON_ARRIVAL', 'ONLINE'],
+      enum: ['PAY_AT_RESTAURANT', 'UPI_ON_ARRIVAL', 'ONLINE', 'RAZORPAY_ONLINE'],
       default: 'PAY_AT_RESTAURANT'
     },
     status: {
       type: String,
-      enum: ['PENDING', 'PAID', 'REFUNDED'],
+      enum: ['PENDING', 'AUTHORIZED', 'PAID', 'CAPTURED', 'FAILED', 'REFUND_PENDING', 'REFUNDED'],
       default: 'PENDING'
     },
     transactionReference: { type: String },

@@ -157,9 +157,18 @@ const MenuContent: React.FC = () => {
     .filter((cat) => cat.items.length > 0);
 
   const totalFilteredItems = filteredCategories.reduce((acc, cat) => acc + cat.items.length, 0);
+  const isDemoRestaurant = slug === 'highway-dhaba' || slug === 'urban-spice' || slug?.includes('demo');
 
   return (
     <div className="min-h-screen bg-stone-50 pb-24 selection:bg-brand-500 selection:text-white relative">
+      {/* Demo Restaurant Notice Banner */}
+      {isDemoRestaurant && (
+        <div className="bg-gradient-to-r from-amber-600 to-amber-500 text-white text-xs font-medium py-1.5 px-4 text-center tracking-wide shadow-sm flex items-center justify-center space-x-2">
+          <span className="bg-amber-800/40 text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded">Practice Sandbox</span>
+          <span>This is an interactive demo restaurant for testing Preplate pre-arrival ordering.</span>
+        </div>
+      )}
+
       {/* Top Header */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-40 backdrop-blur-md bg-white/90">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">

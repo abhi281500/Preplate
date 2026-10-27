@@ -18,7 +18,7 @@ export const createOrderSchema = z.object({
     expectedArrivalTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
       message: 'Invalid expected arrival time date format'
     }),
-    paymentMethod: z.enum(['PAY_AT_RESTAURANT', 'UPI_ON_ARRIVAL']).default('PAY_AT_RESTAURANT')
+    paymentMethod: z.enum(['PAY_AT_RESTAURANT', 'UPI_ON_ARRIVAL', 'ONLINE', 'RAZORPAY_ONLINE']).default('PAY_AT_RESTAURANT')
   })
 });
 

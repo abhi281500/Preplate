@@ -13,6 +13,7 @@ export interface IRestaurantSettings {
   currency: string;                 // Default "INR"
   allowPayAtRestaurant: boolean;    // Default true
   minimumOrderAmount: number;       // Default 0
+  advancePercent: number;           // Default 25 (minimum 25% advance policy)
   upiId?: string;                   // Optional UPI VPA for direct QR display
 }
 
@@ -54,6 +55,7 @@ const RestaurantSettingsSchema = new Schema<IRestaurantSettings>(
     currency: { type: String, default: 'INR' },
     allowPayAtRestaurant: { type: Boolean, default: true },
     minimumOrderAmount: { type: Number, default: 0, min: 0 },
+    advancePercent: { type: Number, default: 25, min: 0, max: 100 },
     upiId: { type: String }
   },
   { _id: false }
