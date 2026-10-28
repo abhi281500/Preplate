@@ -35,7 +35,8 @@ export function buildWhatsAppLink(
   restaurantWhatsApp: string,
   restaurantName: string,
   order: IOrder,
-  clientOrigin: string
+  clientOrigin: string,
+  restaurantSlug?: string
 ): string {
   const cleanNumber = restaurantWhatsApp.replace(/[^0-9]/g, '');
 
@@ -48,7 +49,8 @@ export function buildWhatsAppLink(
     minute: '2-digit'
   });
 
-  const trackingUrl = `${clientOrigin}/r/${order.tenantId}/order/${order.orderReference}`;
+  const trackingSlug = restaurantSlug || order.tenantId;
+  const trackingUrl = `${clientOrigin}/r/${trackingSlug}/order/${order.orderReference}`;
 
   const message = [
     `🍽️ *PREPLATE ORDER REQUEST*`,

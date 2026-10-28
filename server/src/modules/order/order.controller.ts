@@ -297,7 +297,8 @@ export const createPublicOrder = async (
       restaurant.whatsappNumber,
       restaurant.name,
       order,
-      env.CLIENT_ORIGIN
+      env.CLIENT_ORIGIN,
+      restaurant.slug
     );
 
     // 13. Log WhatsApp deep-link generation
@@ -381,7 +382,8 @@ export const getPublicOrder = async (
       restaurant.whatsappNumber,
       restaurant.name,
       order,
-      env.CLIENT_ORIGIN
+      env.CLIENT_ORIGIN,
+      restaurant.slug
     );
 
     res.status(200).json({

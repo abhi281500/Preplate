@@ -367,23 +367,25 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </div>
                       <input
                         type="tel"
+                        maxLength={10}
                         required
                         disabled={isPhoneVerified}
                         value={customerPhone}
                         onChange={(e) => {
-                          setCustomerPhone(e.target.value);
+                          const numeric = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setCustomerPhone(numeric);
                           setIsPhoneVerified(false);
                           setIsOtpSent(false);
                           setVerificationToken(null);
                         }}
-                        placeholder="10-digit Mobile Number"
-                        className="block w-full pl-9 pr-24 py-2 border border-stone-300 rounded-xl text-xs focus:ring-brand-500 focus:border-brand-500 disabled:bg-stone-100 disabled:text-stone-500"
+                        placeholder="10-digit Mobile (e.g. 9876543210)"
+                        className="block w-full pl-9 pr-24 py-2 border border-stone-300 rounded-xl text-xs font-semibold focus:ring-brand-500 focus:border-brand-500 disabled:bg-stone-100 disabled:text-stone-500"
                       />
                       {!isPhoneVerified ? (
                         <button
                           type="button"
                           onClick={handleSendOtp}
-                          disabled={isSendingOtp || customerPhone.length < 10}
+                          disabled={isSendingOtp || customerPhone.length !== 10}
                           className="absolute right-1.5 px-2.5 py-1 text-[11px] font-bold bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg disabled:opacity-40 transition"
                         >
                           {isSendingOtp ? 'Sending...' : isOtpSent ? 'Resend' : 'Verify'}
@@ -392,6 +394,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <span className="absolute right-2 px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded flex items-center">
                           <ShieldCheck className="w-3 h-3 mr-1" /> Verified
                         </span>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] px-1">
+                      <span className={customerPhone.length === 10 ? 'text-emerald-600 font-bold' : 'text-stone-400'}>
+                        {customerPhone.length === 10 ? '✓ Valid 10-digit Mobile' : `Numeric only: ${customerPhone.length}/10 digits`}
+                      </span>
+                      {customerPhone.length === 10 && !isPhoneVerified && !isOtpSent && (
+                        <span className="text-brand-600 font-bold">Tap Verify for OTP</span>
                       )}
                     </div>
 

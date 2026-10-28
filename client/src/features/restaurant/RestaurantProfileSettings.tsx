@@ -134,23 +134,33 @@ export const RestaurantProfileSettings: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase">Contact Phone</label>
+              <div className="flex justify-between items-center">
+                <label className="block text-xs font-bold text-stone-700 uppercase">Contact Phone</label>
+                <span className="text-[10px] text-stone-400 font-bold">{profile.contactPhone.length}/10</span>
+              </div>
               <input
                 type="tel"
+                maxLength={10}
                 required
                 value={profile.contactPhone}
-                onChange={(e) => setProfile({ ...profile, contactPhone: e.target.value })}
+                onChange={(e) => setProfile({ ...profile, contactPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                placeholder="10-digit Phone"
                 className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase">WhatsApp Order Number</label>
+              <div className="flex justify-between items-center">
+                <label className="block text-xs font-bold text-stone-700 uppercase">WhatsApp Order Number</label>
+                <span className="text-[10px] text-stone-400 font-bold">{profile.whatsappNumber.length}/10</span>
+              </div>
               <input
                 type="tel"
+                maxLength={10}
                 required
                 value={profile.whatsappNumber}
-                onChange={(e) => setProfile({ ...profile, whatsappNumber: e.target.value })}
+                onChange={(e) => setProfile({ ...profile, whatsappNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                placeholder="10-digit WhatsApp"
                 className="mt-1 w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
               />
             </div>

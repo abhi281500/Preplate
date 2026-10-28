@@ -13,7 +13,9 @@ import {
   ShieldCheck,
   Radio,
   Copy,
-  Check
+  Check,
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
 import api from '../../shared/api';
 
@@ -343,35 +345,49 @@ ${trackingUrl}`;
 
         <form onSubmit={handleSavePhone} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div className="md:col-span-2 space-y-1.5">
-            <label className="text-xs font-bold text-stone-700">
-              WhatsApp Phone Number (with Country Code)
-            </label>
-            <div className="relative">
-              <Smartphone className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5" />
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-stone-700">
+                Restaurant WhatsApp Number (10 Numeric Digits Only)
+              </label>
+              <span className={`text-[11px] font-bold ${
+                phoneInput.length === 10 ? 'text-emerald-600' : phoneInput.length > 0 ? 'text-amber-600' : 'text-stone-400'
+              }`}>
+                {phoneInput.length === 10
+                  ? '✓ Valid 10-Digit Mobile'
+                  : phoneInput.length > 0
+                  ? `${phoneInput.length}/10 digits (${10 - phoneInput.length} remaining)`
+                  : '10 digits required'}
+              </span>
+            </div>
+            <div className="flex rounded-xl shadow-xs overflow-hidden border border-stone-200 bg-stone-50 focus-within:ring-2 focus-within:ring-brand-500 focus-within:bg-white focus-within:border-brand-500 transition">
+              <span className="inline-flex items-center px-3.5 bg-stone-100 border-r border-stone-200 text-xs font-bold text-stone-700 select-none">
+                🇮🇳 +91
+              </span>
               <input
-                type="text"
+                type="tel"
+                maxLength={10}
                 value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="+919876543210 or 9876543210"
-                className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition"
+                onChange={(e) => setPhoneInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="9876543210"
+                className="w-full px-3 py-2.5 bg-transparent text-xs font-bold text-stone-900 focus:outline-none"
               />
             </div>
             <p className="text-[11px] text-stone-400">
-              For India numbers, 10-digit numbers automatically map to +91 country prefix.
+              Only numbers (0-9) allowed. Maximum 10 digits. Incoming kitchen alerts will be sent to this WhatsApp.
             </p>
           </div>
 
           <div className="flex items-center space-x-3">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || phoneInput.length !== 10}
               className="w-full inline-flex items-center justify-center space-x-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-sm transition"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{saving ? 'Saving...' : 'Save WhatsApp Number'}</span>
             </button>
 
-            {phoneInput.trim().length >= 10 && (
+            {phoneInput.trim().length === 10 && (
               <a
                 href={getCleanTestLink()}
                 target="_blank"
@@ -427,13 +443,14 @@ ${trackingUrl}`;
         <div className="flex items-center space-x-2 border-b border-stone-200 pb-2 overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTemplateTab('request')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap flex items-center space-x-1.5 ${
               activeTemplateTab === 'request'
                 ? 'bg-stone-900 text-white shadow-sm'
                 : 'text-stone-600 hover:bg-stone-100'
             }`}
           >
-            1. New Order Request (Customer → Kitchen)
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>1. Kitchen Staff Alert (Owner Only)</span>
           </button>
           <button
             onClick={() => setActiveTemplateTab('accepted')}
@@ -443,7 +460,7 @@ ${trackingUrl}`;
                 : 'text-stone-600 hover:bg-stone-100'
             }`}
           >
-            2. Order Accepted (Kitchen → Customer)
+            2. Order Accepted (Customer Tracking)
           </button>
           <button
             onClick={() => setActiveTemplateTab('ready')}
@@ -453,9 +470,32 @@ ${trackingUrl}`;
                 : 'text-stone-600 hover:bg-stone-100'
             }`}
           >
-            3. Order Ready (Counter Pickup Alert)
+            3. Food Ready (Customer Pickup)
           </button>
         </div>
+
+        {/* Security & Target Role Explanatory Banner */}
+        {activeTemplateTab === 'request' ? (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start space-x-2.5">
+            <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">Internal Restaurant Alert — Sent ONLY to Restaurant Owner/Chef WhatsApp</span>
+              <p className="text-[11px] text-amber-800 leading-normal mt-0.5">
+                This notification is sent to your restaurant&apos;s WhatsApp when a diner places a pre-order so kitchen staff can accept it. <strong>Customers never receive this message or link</strong>. Even if anyone opens the kitchen queue URL, it is locked behind owner login credentials.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start space-x-2.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">Customer WhatsApp Notification — Isolated Public Tracking</span>
+              <p className="text-[11px] text-emerald-800 leading-normal mt-0.5">
+                Sent directly to the customer&apos;s phone. It contains a secure public link (<code className="bg-emerald-100 px-1 rounded font-mono text-[10px]">/r/:slug/order/:reference</code>) showing only their live preparation timer. Customers have <strong>zero access</strong> to your restaurant administration.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* WhatsApp Chat Bubble Mockup with Clickable Hyperlinks */}
         <div className="bg-stone-100 rounded-2xl p-5 border border-stone-200 space-y-3">

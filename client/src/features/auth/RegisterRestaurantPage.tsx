@@ -196,22 +196,24 @@ export const RegisterRestaurantPage: React.FC = () => {
                   </div>
                   <input
                     type="tel"
+                    maxLength={10}
                     required
                     disabled={isPhoneVerified}
                     value={formData.contactPhone}
                     onChange={(e) => {
-                      setFormData({ ...formData, contactPhone: e.target.value, verificationToken: '' });
+                      const numeric = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFormData({ ...formData, contactPhone: numeric, verificationToken: '' });
                       setIsPhoneVerified(false);
                       setIsOtpSent(false);
                     }}
                     className="block w-full pl-9 pr-20 py-2 border border-stone-300 rounded-lg text-sm focus:ring-brand-500 focus:border-brand-500 disabled:bg-stone-100"
-                    placeholder="+919876543210"
+                    placeholder="10-digit Mobile (e.g. 9876543210)"
                   />
                   {!isPhoneVerified && (
                     <button
                       type="button"
                       onClick={handleSendOtp}
-                      disabled={isSendingOtp || formData.contactPhone.length < 8}
+                      disabled={isSendingOtp || formData.contactPhone.length !== 10}
                       className="absolute right-1 px-2.5 py-1 text-xs font-bold bg-brand-50 text-brand-700 hover:bg-brand-100 rounded disabled:opacity-40 transition"
                     >
                       {isSendingOtp ? 'Sending...' : isOtpSent ? 'Resend' : 'Verify'}
@@ -255,11 +257,15 @@ export const RegisterRestaurantPage: React.FC = () => {
                   </div>
                   <input
                     type="tel"
+                    maxLength={10}
                     required
                     value={formData.whatsappNumber}
-                    onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                    onChange={(e) => {
+                      const numeric = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFormData({ ...formData, whatsappNumber: numeric });
+                    }}
                     className="block w-full pl-9 pr-3 py-2 border border-stone-300 rounded-lg text-sm focus:ring-brand-500 focus:border-brand-500"
-                    placeholder="+919876543210"
+                    placeholder="10-digit WhatsApp (e.g. 9876543210)"
                   />
                 </div>
               </div>
