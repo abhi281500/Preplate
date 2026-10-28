@@ -178,7 +178,21 @@ export const OrderTrackingPage: React.FC = () => {
           >
             <ArrowLeft className="w-4 h-4 mr-1" /> Menu
           </Link>
-          <span className="text-xs font-bold text-stone-900">{order.restaurant.name}</span>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold text-stone-900">{order.restaurant.name}</span>
+            {order.restaurant.whatsappNumber && (
+              <a
+                href={`https://wa.me/${order.restaurant.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                title="Contact Restaurant"
+                className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden sm:inline">Help</span>
+              </a>
+            )}
+          </div>
         </div>
       </header>
 

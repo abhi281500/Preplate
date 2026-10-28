@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   Plus,
   Minus,
-  ShoppingBag
+  ShoppingBag,
+  RotateCw
 } from 'lucide-react';
 import api from '../../shared/api';
 import { CartProvider, useCart } from './CartContext';
@@ -117,17 +118,20 @@ const MenuContent: React.FC = () => {
   if (error || !restaurant) {
     return (
       <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-4">
           <AlertCircle className="w-8 h-8" />
         </div>
-        <h1 className="text-2xl font-bold text-stone-900">Restaurant Not Found</h1>
-        <p className="text-stone-600 mt-2 max-w-md text-sm">{error || 'This restaurant link is inactive or invalid.'}</p>
-        <Link
-          to="/"
-          className="mt-6 inline-flex items-center text-sm font-bold text-brand-600 hover:text-brand-700"
+        <h1 className="text-2xl font-bold text-stone-900">Restaurant Menu Unavailable</h1>
+        <p className="text-stone-600 mt-2 max-w-md text-sm">
+          {error || 'This dining menu link is currently inactive or temporarily unavailable. Please check the QR code or request the active menu link from restaurant staff.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-6 inline-flex items-center px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-sm transition active:scale-95"
         >
-          <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Preplate Directory
-        </Link>
+          <RotateCw className="w-4 h-4 mr-2" /> Refresh Menu
+        </button>
       </div>
     );
   }
@@ -169,26 +173,77 @@ const MenuContent: React.FC = () => {
         </div>
       )}
 
-      {/* Top Header */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-40 backdrop-blur-md bg-white/90">
+      {/* Top Header - Dedicated Restaurant Branding */}
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-40 backdrop-blur-md bg-white/95 shadow-xs">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center text-xs font-semibold text-stone-600 hover:text-stone-900 transition"
+          {/* Restaurant Brand Identity (No parent directory leakage) */}
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex items-center space-x-2 text-left group focus:outline-none"
+            title="Scroll to top of menu"
           >
-            <ArrowLeft className="w-4 h-4 mr-1" /> Preplate Directory
-          </Link>
-          <div className="flex items-center space-x-2">
-            <span className="text-xs font-bold text-stone-900 tracking-tight">{restaurant.name}</span>
-            {restaurant.isOpenNow ? (
-              <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
-                Open Now
-              </span>
-            ) : (
-              <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-200 text-stone-700">
-                Closed
-              </span>
+            <div className="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center font-extrabold text-sm shadow-sm flex-shrink-0 group-hover:scale-105 transition-transform">
+              {restaurant.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-sm font-extrabold text-stone-900 tracking-tight leading-tight truncate max-w-[140px] sm:max-w-xs group-hover:text-brand-600 transition-colors">
+                  {restaurant.name}
+                </span>
+                {restaurant.isOpenNow ? (
+                  <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex-shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
+                    Open
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-stone-200 text-stone-700 flex-shrink-0">
+                    Closed
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-medium text-stone-400">Pre-Arrival Menu</span>
+            </div>
+          </button>
+
+          {/* Quick Header Actions */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2">
+            {restaurant.contactPhone && (
+              <a
+                href={`tel:${restaurant.contactPhone}`}
+                title={`Call ${restaurant.name}`}
+                className="inline-flex items-center space-x-1 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 px-2.5 py-1.5 rounded-lg transition"
+              >
+                <Phone className="w-3.5 h-3.5 text-stone-500" />
+                <span className="hidden sm:inline">Call</span>
+              </a>
+            )}
+
+            {restaurant.whatsappNumber && (
+              <a
+                href={`https://wa.me/${restaurant.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                title="Chat on WhatsApp"
+                className="inline-flex items-center space-x-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg border border-emerald-200 transition"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </a>
+            )}
+
+            {totalCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className="inline-flex items-center space-x-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg shadow-sm transition active:scale-95"
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>₹{subtotal}</span>
+                <span className="bg-white/20 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                  {totalCount}
+                </span>
+              </button>
             )}
           </div>
         </div>
